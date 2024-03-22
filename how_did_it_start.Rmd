@@ -1,0 +1,160 @@
+---
+title: "How did it start?"
+author: "Thibaut Jombart, Henry Mouysset"
+date: "2024-03-22"
+output:
+  pdf_document: default
+  html_document: default
+bibliography: biblio.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  include = TRUE,
+  fig.width = 7
+  )
+```
+
+# Preamble
+
+In this report, we investigate some of the key elements of the early stages of the Plague epidemic in Gévaudan, which started in 1720 in the village of Correjac, soon followed by the town of La Canourgue. 
+
+The analyses will rely on estimates of various epidemiological parameters, such as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or delay distributions including the incubation period, the infectious period, or the serial interval. Where possible, these quantities are directly estimated from available date. Failing that, we use estimates from the literature.
+
+
+# Estimates of key epidemiological features
+
+## Delay distributions
+
+### Incubation period
+
+The incubation period has been characterised for Pneumonic plague as a lognormal distribution with mean 4.3 and standard deviation 1.8 [@Gani2004-hc]. Here we recreate this distribution using `distcrete`:
+
+```{r}
+library(distcrete)
+library(tidyverse)
+
+incub_pneumo <- distcrete(
+  "lnorm", 
+  meanlog = log(4.3), 
+  sdlog = log(1.8), 
+  interval = 1, 
+  w = 0
+  )
+
+incub_dat <- tibble(
+  Day = 0:20,
+  p = incub_pneumo$d(0:20)
+  )
+
+incub_dat %>% 
+  ggplot(aes(x = Day, y = p)) +
+  geom_col(fill = 2) +
+  theme_bw() +
+  labs(
+    x = "Time from infection to symptom onset (days)", 
+    y = "Probability", 
+    title = "Incubation time distribution", 
+    subtitle = "(discretized lognormal)")
+
+```
+
+
+### Infectious period
+
+The infectious period has been characterised for Pneumonic plague as a lognormal distribution with mean 2.5 and standard deviation reported as 1.2 [@Gani2004-hc]. This is likely an error though, as the graph presented in that paper is more compatible with an SD of 1.4, which we use here. Note that because this form had near 100% CFR, this is also the distribution of the time from onset of symptoms to death. 
+
+```{r}
+
+infec_pneumo <- distcrete(
+  "lnorm", 
+  meanlog = log(2.5), 
+  sdlog = log(1.4), 
+  interval = 1, 
+  w = 0
+  )
+
+
+infec_dat <- tibble(
+  Day = 0:7,
+  p = infec_pneumo$d(0:7)
+  )
+
+infec_dat %>% 
+  ggplot(aes(x = Day, y = p)) +
+  geom_col(fill = 2) +
+  theme_bw() +
+  labs(
+    x = "Time from symptom onset to death (days)", 
+    y = "Probability", 
+    title = "Infectious period distribution", 
+    subtitle = "(discretized lognormal)")
+
+```
+
+
+
+# Patient zero: the convict from Marseille
+
+The theory of the convict walking all the way from Marseille with an infected bundle of wool to eventually infect Jean Quintin in Saint Laurent d’Olt is suspicious: the man would have had to not get infected during his entire trip, to then infect JQ after a fairly brief encounter. 
+
+The trip by foot via current roads is 273 km, and would have likely been longer using roads at the time. Especially since patrols were restricting movement in the area, and would have demanded some extra time to be avoided. 
+
+We will explore 2 scenarios: a very optimistic one where the trip was made in 7 days, and a possibly more realistic one where the trip took 12 days (~300 km with an average of 25km per day).
+
+We do not know what the daily rate of infection $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
+
+$$
+\mathcal{L(\lambda)} = p(T | \lambda) = (e^{-\lambda})^T (1 - e^{-\lambda})
+$$
+
+where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of infection from the infected bundle. 
+
+Let us look at these profiles, ensuring we re-standardise both densities to 1 to make them comparable, as they rely on datasets of different sizes:
+
+```{r}
+like_trip <- function(lambda, T) {
+  p <- 1 - exp(-lambda)
+  (1 - p)^T * p
+}
+
+lambda_res <- tibble(
+  val = seq(0, 1.2, length = 300),
+  "7 days" = like_trip(val, 7), 
+  "12 days" = like_trip(val, 12)
+) %>% 
+  mutate_at(
+    vars(contains("days")), 
+    function(x) x / sum(x)
+  )
+
+lambda_res_long <-  lambda_res %>% 
+  pivot_longer(-1, names_to = "scenario", values_to = "likelihood")
+  
+lambda_res_mle <- lambda_res_long %>% 
+  group_by(scenario) %>% 
+  summarise(MLE = val[which.max(likelihood)])
+
+lambda_res_long %>% 
+  ggplot(aes(x = val, y = likelihood, color = scenario)) +
+  geom_line(linewidth = 2, alpha = 0.7) + 
+  geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
+  theme_bw() + 
+  labs(
+    x = "Daily rate of infection (\U03BB)",
+    y = "Likelihood",
+    title = "Estimation of the probability of daily infection"
+  ) +
+  scale_x_continuous(n.breaks = 20)
+
+lambda_res_mle
+
+```
+
+Surprisingly, we do find some more likely values than others, and this leans towards fairly low rates of infection around 0.1 (12 days trip) or 0.15 (7 days trip).
+
+
+
+
+# References
