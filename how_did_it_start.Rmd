@@ -3,8 +3,8 @@ title: "How did it start?"
 author: "Thibaut Jombart, Henry Mouysset"
 date: "2024-03-22"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 bibliography: biblio.bib
 ---
 
@@ -120,7 +120,7 @@ like_trip <- function(lambda, T) {
 }
 
 lambda_res <- tibble(
-  val = seq(0, 1.2, length = 300),
+  val = seq(0, 1.2, length = 1000),
   "7 days" = like_trip(val, 7), 
   "12 days" = like_trip(val, 12)
 ) %>% 
@@ -152,7 +152,52 @@ lambda_res_mle
 
 ```
 
-Surprisingly, we do find some more likely values than others, and this leans towards fairly low rates of infection around 0.1 (12 days trip) or 0.15 (7 days trip).
+We find some more likely values than others, and this leans towards fairly low rates of infection around 0.08 (12 days trip) or 0.13 (7 days trip). We calculate the corresponding probabilities that these events occurred using the MLE:
+
+```{r}
+
+lambda_res_mle <- lambda_res_mle %>% 
+  mutate(
+    days = as.integer(sub(" days", "", scenario)), 
+    proba = like_trip(lambda = MLE, T = days)
+    )
+lambda_res_mle
+
+```
+The resulting probabilities are not amazingly low: about 
+`r round(100*lambda_res_mle$proba[1], 1)`% chances for a trip of 12 days, and 
+`r round(100*lambda_res_mle$proba[2], 1)`% for 7 days.
+
+
+# The first case after Jean
+
+It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+
+```{r}
+## calculate possible delays from infection to death
+child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24")+ 0:2)
+child_delay
+
+## convolve using 1e5 draws from distributions
+sim_delay_inf_death <- incub_pneumo$r(1e5) + infec_pneumo$r(1e5)
+
+## calculate p-values
+sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
+
+qplot(sim_delay_inf_death) + 
+  theme_bw() + 
+  geom_vline(xintercept = child_delay) + 
+  xlim(0, 40) + 
+  labs(
+    title = "Simulated delays from infection to death", 
+    x = "Days from infection to death", 
+    y = "Frequency"
+    )
+
+```
+
+It is very unlikely that the first secondary case was indeed infected by Jean Quintin, unless the burial took a long time.
+
 
 
 
