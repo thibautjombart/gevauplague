@@ -3,8 +3,8 @@ title: "How did it start?"
 author: "Thibaut Jombart, Henry Mouysset"
 date: "2024-03-22"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 bibliography: biblio.bib
 ---
 
@@ -12,7 +12,10 @@ bibliography: biblio.bib
 knitr::opts_chunk$set(
   echo = TRUE, 
   include = TRUE,
-  fig.width = 7
+  fig.width = 7, 
+  out.width = "80%",
+  warning = FALSE, 
+  message = FALSE
   )
 ```
 
@@ -55,7 +58,7 @@ incub_dat %>%
   labs(
     x = "Time from infection to symptom onset (days)", 
     y = "Probability", 
-    title = "Incubation time distribution", 
+    title = "Incubation time distribution - pneumonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
@@ -88,7 +91,7 @@ infec_dat %>%
   labs(
     x = "Time from symptom onset to death (days)", 
     y = "Probability", 
-    title = "Infectious period distribution", 
+    title = "Infectious period distribution - pneumonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
@@ -101,7 +104,11 @@ The theory of the convict walking all the way from Marseille with an infected bu
 
 The trip by foot via current roads is 273 km, and would have likely been longer using roads at the time. Especially since patrols were restricting movement in the area, and would have demanded some extra time to be avoided. 
 
-We will explore 2 scenarios: a very optimistic one where the trip was made in 7 days, and a possibly more realistic one where the trip took 12 days (~300 km with an average of 25km per day).
+We will explore 3 scenarios, with varying durations for the trip, which we posit was at least about 300 km: 
+
+- 7 days (very optimistic, > 40 km per day)
+- 12 days (~ 25km per day)
+- 20 days (~ 15 km per day)
 
 We do not know what the daily rate of infection $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
 
@@ -122,7 +129,8 @@ like_trip <- function(lambda, T) {
 lambda_res <- tibble(
   val = seq(0, 1.2, length = 1000),
   "7 days" = like_trip(val, 7), 
-  "12 days" = like_trip(val, 12)
+  "12 days" = like_trip(val, 12), 
+  "20 days" = like_trip(val, 20)
 ) %>% 
   mutate_at(
     vars(contains("days")), 
@@ -130,7 +138,8 @@ lambda_res <- tibble(
   )
 
 lambda_res_long <-  lambda_res %>% 
-  pivot_longer(-1, names_to = "scenario", values_to = "likelihood")
+  pivot_longer(-1, names_to = "scenario", values_to = "likelihood") %>% 
+  mutate(scenario = factor(scenario, levels = paste(c(7, 12, 20), "days")))
   
 lambda_res_mle <- lambda_res_long %>% 
   group_by(scenario) %>% 
@@ -152,7 +161,7 @@ lambda_res_mle
 
 ```
 
-We find some more likely values than others, and this leans towards fairly low rates of infection around 0.08 (12 days trip) or 0.13 (7 days trip). We calculate the corresponding probabilities that these events occurred using the MLE:
+We find some more likely values than others, and this leans towards fairly low rates ranging from `r round(min(lambda_res_mle$MLE), 5)` to `r round(min(lambda_res_mle$MLE), 5)`. We calculate the corresponding probabilities that these events occurred using the MLE:
 
 ```{r}
 
@@ -164,39 +173,65 @@ lambda_res_mle <- lambda_res_mle %>%
 lambda_res_mle
 
 ```
-The resulting probabilities are not amazingly low: about 
-`r round(100*lambda_res_mle$proba[1], 1)`% chances for a trip of 12 days, and 
-`r round(100*lambda_res_mle$proba[2], 1)`% for 7 days.
+The resulting probabilities are quite low, ranging from 
+`r round(100*lambda_res_mle$proba[3], 1)`% chances for a trip of 20 days, to  
+`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the infection from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
 
 
 # The first case after Jean
 
-It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Pneumonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
 
 ```{r}
 ## calculate possible delays from infection to death
-child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24")+ 0:2)
+child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
 ## convolve using 1e5 draws from distributions
 sim_delay_inf_death <- incub_pneumo$r(1e5) + infec_pneumo$r(1e5)
 
 ## calculate p-values
-sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
+child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
+child_delay_pval
+mean(child_delay_pval)
 
 qplot(sim_delay_inf_death) + 
   theme_bw() + 
-  geom_vline(xintercept = child_delay) + 
+  geom_vline(xintercept = child_delay, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death", 
+    title = "Simulated delays from infection to death - pneumonic plague",
+    subtitle = "dashed lines: JQ -> child transmission",
     x = "Days from infection to death", 
     y = "Frequency"
     )
 
 ```
 
-It is very unlikely that the first secondary case was indeed infected by Jean Quintin, unless the burial took a long time.
+It is very unlikely that the first secondary case was directly infected by Jean Quintin. There remains the possibility that infected surfaces (clothes, bedsheets) were infected by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
+
+```{r}
+
+qplot(sim_delay_inf_death) + 
+  theme_bw() + 
+  geom_vline(xintercept = child_delay - 5, color = 2, linetype = 2) + 
+  xlim(0, 40) + 
+  labs(
+    title = "Simulated delays from infection to death - pneumonic plague", 
+    subtitle = "dashed lines: JQ -> child transmission",
+    x = "Days from infection to death", 
+    y = "Frequency"
+    )
+
+child_delay_pval_alt <- sapply(child_delay - 5, function(x) mean(sim_delay_inf_death >= x))
+child_delay_pval_alt
+mean(child_delay_pval_alt)
+```
+
+It seems we can rule out the hypothesis of a direct transmission of pneumonic plague. Possible aternatives are:
+
+- it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
+- the kid was __not__ infected by his dad, but from a zoonotic source
 
 
 
