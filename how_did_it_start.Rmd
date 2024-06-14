@@ -3,8 +3,8 @@ title: "How did it start?"
 author: "Thibaut Jombart, Henry Mouysset"
 date: "2024-03-22"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 bibliography: biblio.bib
 ---
 
@@ -27,7 +27,7 @@ Correjac, soon followed by the town of La Canourgue.
 
 The analyses will rely on estimates of various epidemiological parameters, such
 as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or
-delay distributions including the incubation period, the infectious period, or
+delay distributions including the incubation period, the sitious period, or
 the serial interval. Where possible, these quantities are directly estimated
 from available date. Failing that, we use estimates from the literature.
 
@@ -64,7 +64,7 @@ incub_dat %>%
   geom_col(fill = 4) +
   theme_bw() +
   labs(
-    x = "Time from infection to symptom onset (days)", 
+    x = "Time from sition to symptom onset (days)", 
     y = "Probability", 
     title = "Incubation time distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
@@ -72,16 +72,16 @@ incub_dat %>%
 ```
 
 
-### Infectious period
+### sitious period
 
-The infectious period distribution is built similarly to match data from the
+The sitious period distribution is built similarly to match data from the
 literature, where for historical outbreaks death is reported to take place
 within 3 to 5 days post-symptom onset. Note that because this form had near 100%
 CFR, this is also the distribution of the time from onset of symptoms to death.
 
 ```{r}
 
-infec <- distcrete(
+si <- distcrete(
   "lnorm", 
   meanlog = log(3), 
   sdlog = log(1.4), 
@@ -90,19 +90,19 @@ infec <- distcrete(
   )
 
 
-infec_dat <- tibble(
+si_dat <- tibble(
   Day = 0:15,
-  p = infec$d(0:15)
+  p = si$d(0:15)
   )
 
-infec_dat %>% 
+si_dat %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 2) +
   theme_bw() +
   labs(
     x = "Time from symptom onset to death (days)", 
     y = "Probability", 
-    title = "Infectious period distribution - bubonic plague", 
+    title = "sitious period distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
@@ -113,14 +113,14 @@ untreated bubonic plague of 3.6 days [@noauthor_1907-bh]:
 ```{r }
 
 ## mean of 100 000 values from the distribution:
-mean(infec$r(1e5))
+mean(si$r(1e5))
 
 ```
 
 
 # Patient zero: the convict from Marseille
 
-The theory of the convict walking all the way from Marseille with an infected bundle of wool to eventually infect Jean Quintin in Saint Laurent d’Olt is suspicious: the man would have had to not get infected during his entire trip, to then infect JQ after a fairly brief encounter. 
+The theory of the convict walking all the way from Marseille with an sited bundle of wool to eventually sit Jean Quintin in Saint Laurent d’Olt is suspicious: the man would have had to not get sited during his entire trip, to then sit JQ after a fairly brief encounter. 
 
 The trip by foot via current roads is 273 km, and would have likely been longer using roads at the time. Especially since patrols were restricting movement in the area, and would have demanded some extra time to be avoided. 
 
@@ -130,13 +130,13 @@ We will explore 3 scenarios, with varying durations for the trip, which we posit
 - 12 days (~ 25km per day)
 - 20 days (~ 15 km per day)
 
-We do not know what the daily rate of infection $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
+We do not know what the daily rate of sition $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
 
 $$
 \mathcal{L(\lambda)} = p(T | \lambda) = (e^{-\lambda})^T (1 - e^{-\lambda})
 $$
 
-where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of infection from the infected bundle. 
+where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of sition from the sited bundle. 
 
 Let us look at these profiles, ensuring we re-standardise both densities to 1 to make them comparable, as they rely on datasets of different sizes:
 
@@ -171,9 +171,9 @@ lambda_res_long %>%
   geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
   theme_bw() + 
   labs(
-    x = "Daily rate of infection (\U03BB)",
+    x = "Daily rate of sition (\U03BB)",
     y = "Likelihood",
-    title = "Estimation of the probability of daily infection"
+    title = "Estimation of the probability of daily sition"
   ) +
   scale_x_continuous(n.breaks = 20)
 
@@ -199,20 +199,20 @@ lambda_res_mle
 ```
 The resulting probabilities are quite low, ranging from 
 `r round(100*lambda_res_mle$proba[3], 1)`% chances for a trip of 20 days, to  
-`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the infection from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
+`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the sition from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
 
 
 # The first case after Jean
 
-It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of sition (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
 
 ```{r}
-## calculate possible delays from infection to death
+## calculate possible delays from sition to death
 child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
 ## convolve using 1e5 draws from distributions
-sim_delay_inf_death <- incub$r(1e5) + infec$r(1e5)
+sim_delay_inf_death <- incub$r(1e5) + si$r(1e5)
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
@@ -224,15 +224,15 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death - bubonic plague",
+    title = "Simulated delays from sition to death - bubonic plague",
     subtitle = "dashed lines: JQ -> child transmission",
-    x = "Days from infection to death", 
+    x = "Days from sition to death", 
     y = "Frequency"
     )
 
 ```
 
-It is very unlikely that the first secondary case was directly infected by Jean Quintin. There remains the possibility that infected surfaces (clothes, bedsheets) were infected by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
+It is very unlikely that the first secondary case was directly sited by Jean Quintin. There remains the possibility that sited surfaces (clothes, bedsheets) were sited by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
 
 ```{r}
 
@@ -241,9 +241,9 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay - 5, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death - bubonic plague", 
+    title = "Simulated delays from sition to death - bubonic plague", 
     subtitle = "dashed lines: JQ -> child transmission",
-    x = "Days from infection to death", 
+    x = "Days from sition to death", 
     y = "Frequency"
     )
 
@@ -255,11 +255,13 @@ mean(child_delay_pval_alt)
 It seems we can rule out the hypothesis of a direct transmission of bubonic plague. Possible aternatives are:
 
 - it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
-- the kid was __not__ infected by his dad, but from a zoonotic source
+- the kid was __not__ sited by his dad, but from a zoonotic source
 
 
 
-# Epidemic start
+# Modelling the early epidemic
+
+## Epidemic curve
 
 Here we analyse the linelist of the first few cases in Corréjac, followed by La Canourgue.
 
@@ -271,7 +273,7 @@ x <- rio::import(file_path, sheet = "linelist") %>%
 x
 ```
 
-We build a simple epidemic curve for Corréjac:
+We build a simple epidemic curve for Corréjac, and for both locations together:
 
 ```{r}
 library(incidence2)
@@ -279,29 +281,117 @@ library(incidence2)
 x %>% 
   filter(location == "Corréjac") %>% 
   incidence("date_of_death", groups = "family", interval = 7) %>% 
-  plot(fill = "family", colour_palette = muted, angle = 45) + 
+  plot(fill = "family", colour_palette = muted, angle = 45, border = "white") + 
   labs(
     title = "Early epicurve by date of death - Corréjac",
     x = "Date of death", 
     y = "Number of cases"
     )
 
-i <- x %>% 
-  filter(location == "Corréjac") %>% 
-  incidence("date_of_death", groups = "family") %>% 
-  complete_dates()
+x %>% 
+  incidence("date_of_death", groups = "family", interval = 7) %>% 
+  plot(fill = "family", colour_palette = muted, angle = 45, border = "white") + 
+  labs(
+    title = "Early epicurve by date of death - Corréjac and La Canourgue",
+    x = "Date of death", 
+    y = "Number of cases"
+    )
 
 ```
 
-To estimate the reproduction number, we'll need to account for the fact that we are looking a deaths, and account for the uncertainty in delays from onset to death. This said, as a first approximation we can use _earlyR_ and EpiEstim on the daily epicurve:
+There is one key question here: do we assume Corréjac and La Canourgue were disconnected at the time, or do we treat these as a single location. 
+
+
+## A transmission model for bubonic plague
+
+A branching process will likely be best at capturing small fluctuations in case incidence over time, whilst neglecting the impact of the depletion of susceptible individuals. However we need to allow for a background rate of zoonotic introduction in addition to the classical person-to-person transmission [@Wallinga2004-al]. As such, we will be using a Hawkes process [@Hawkes1971-iz] to model the case incidence at time $t$ (noted $y_t$) such that:
+
+\begin{equation}
+y_t \sim \mathcal{P}(\lambda_t)
+\end{equation}
+
+with:
+
+\begin{equation}
+\lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R y_s w(t - s)
+\end{equation}
+
+where $\lambda_z$ is the background rate of zoonotic introductions, $R$ is the effective reproduction number (assumed constant over the time period considered), and $w(.)$ is usually the probability mass function of the serial interval distribution. Unfortunately, here we do not know dates of onset, only dates of deaths. Denoting $o_i$ and $d_i$ the dates of onset and death of case $i$, we have:
+
+\begin{equation}
+\label{eqn:aug}
+p(d_i - o_i) = f(.)
+\end{equation}
+
+
+where $f(.)$ is the distribution of the sitious period duration.
+
+The Hawkes process described above provides the following likelihood formulation:
+
+\begin{equation}
+p(y | \lambda_z, R, w, f) = \prod_t p(y_t | y_1, ..., y_{t-1}, \lambda_z, R)
+\end{equation}
+
+This likelihood can be used in a Bayesian framework where:
+
+\begin{equation}
+p(\lambda_z, R | y) = p(y | \lambda_z, R) p(\lambda_z, R) =
+p(y | \lambda_z, R, w, f) p(\lambda_z) p(R)
+\end{equation}
+
+where the last two terms are prior distributions for $\lambda_z$ and $R$.
+
+We can sample from this posterior using the following MCMC, after setting any non-zero probability initial state:
+
+1. create augmented data $y$ using equation \ref{eqn:aug}.
+2. apply Metropolis algorithm iteration
+3. go back to 1 until desired number of iterations reached
+
+
+## Distributions
+
+### Serial interval
+
+We build the serial interval distribution using an average of 7.4 days [@Dean2019-ic] and a coefficient of variation of 0.9 in line with the original publication:
 
 ```{r}
-library(earlyR)
-# R_early <- get_R(i$count, si_mean = 8, si_sd = 2)
+si_params <- epitrix::gamma_mucv2shapescale(7.4, 0.9)
+si <- distcrete(
+  "gamma", shape = si_params$shape, scale = si_params$scale, 
+  w = 1, interval = 1)
+
+si_dat <- tibble(
+  Day = 0:25,
+  p = si$d(0:25)
+  )
+
+si_dat %>% 
+  ggplot(aes(x = Day, y = p)) +
+  geom_col(fill = 2) +
+  theme_bw() +
+  labs(
+    x = "Time from primary to secondary symptom onset", 
+    y = "Probability", 
+    title = "Serial interval distribution - bubonic plague", 
+    subtitle = "(discretized gamma)")
+
+```
 
 
-library(EpiEstim)
+### Priors
 
+We use a prior for $R$ derived from [@Dean2019-ic] as a lognormal distribution with mean 1.6 and standard deviation 1.3:
+
+```{r}
+prior_R <- function(x, log = FALSE) dlnorm(x, log(1.6), log(1.3), log = log)
+plot(prior_R, xlim = c(0, 3), main = "Prior for R")
+```
+
+Rates of zoonotic introductions are usually harder to estimate, so we use fairly uninformative priors for $\lambda_z$:
+
+```{r}
+prior_zoo <- function(x, log = FALSE) dexp(x, 2, log = log)
+plot(prior_zoo, xlim = c(0, 2), main = "Prior for lambda_z")
 ```
 
 
