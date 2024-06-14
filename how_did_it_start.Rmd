@@ -72,16 +72,16 @@ incub_dat %>%
 ```
 
 
-### sitious period
+### Infectious period
 
-The sitious period distribution is built similarly to match data from the
+The infectious period distribution is built similarly to match data from the
 literature, where for historical outbreaks death is reported to take place
 within 3 to 5 days post-symptom onset. Note that because this form had near 100%
 CFR, this is also the distribution of the time from onset of symptoms to death.
 
 ```{r}
 
-si <- distcrete(
+infec <- distcrete(
   "lnorm", 
   meanlog = log(3), 
   sdlog = log(1.4), 
@@ -90,19 +90,19 @@ si <- distcrete(
   )
 
 
-si_dat <- tibble(
+infec_dat <- tibble(
   Day = 0:15,
   p = si$d(0:15)
   )
 
-si_dat %>% 
+infec_dat %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 2) +
   theme_bw() +
   labs(
     x = "Time from symptom onset to death (days)", 
     y = "Probability", 
-    title = "sitious period distribution - bubonic plague", 
+    title = "Infectious period distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
@@ -113,7 +113,7 @@ untreated bubonic plague of 3.6 days [@noauthor_1907-bh]:
 ```{r }
 
 ## mean of 100 000 values from the distribution:
-mean(si$r(1e5))
+mean(infec$r(1e5))
 
 ```
 
@@ -212,7 +212,7 @@ child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
 ## convolve using 1e5 draws from distributions
-sim_delay_inf_death <- incub$r(1e5) + si$r(1e5)
+sim_delay_inf_death <- incub$r(1e5) + infec$r(1e5)
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
@@ -392,6 +392,55 @@ Rates of zoonotic introductions are usually harder to estimate, so we use fairly
 ```{r}
 prior_zoo <- function(x, log = FALSE) dexp(x, 2, log = log)
 plot(prior_zoo, xlim = c(0, 2), main = "Prior for lambda_z")
+```
+
+
+## Implementation
+
+The following code implements the model.
+
+```{r}
+
+## Function to generate augmented data
+make_aug_data <- function(
+    deaths = x$date_of_death, 
+    f = infec$r) {
+    deaths - f(length(deaths))
+}
+
+## Function to calculate the log-likelihood
+compute_loglike <- function(x, params, w = si$d(0:50)) {
+  ### turn data into time since first case, exclude 1st one
+  y <- as.integer(x - min(x))
+  last_day <- max(y)
+  
+  ## calculate incidence for the whole time period, do no miss the zeros
+  incid <- sapply(seq(0, last_day, by = 1), function(i) sum(y == i))
+ 
+  ## get relative FOIs
+  lambdas_p2p <- EpiEstim::overall_infectivity(incid, w)
+  lambdas <- params$zoo + lambdas_p2p * params$R
+  out <- dpois(incid, lambdas, log = TRUE)
+  sum(na.omit(out))
+}
+  
+  
+## Function to calculate log-priors
+compute_priors <- function(params) {
+  prior_R(params$R, log = TRUE) + prior_zoo(params$zoo, log = TRUE)
+}
+
+## Compute log-posterior
+compute_post <- function(x, params, w = si$d(0:50)) {
+  compute_loglike(x, params, w) + compute_priors(params)
+}
+
+## Function to propose new parameter values
+
+## MCMC
+
+loglike <- function(params)
+
 ```
 
 
