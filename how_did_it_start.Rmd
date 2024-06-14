@@ -3,8 +3,8 @@ title: "How did it start?"
 author: "Thibaut Jombart, Henry Mouysset"
 date: "2024-03-22"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 bibliography: biblio.bib
 ---
 
@@ -53,7 +53,7 @@ incub_dat <- tibble(
 
 incub_dat %>% 
   ggplot(aes(x = Day, y = p)) +
-  geom_col(fill = 2) +
+  geom_col(fill = 4) +
   theme_bw() +
   labs(
     x = "Time from infection to symptom onset (days)", 
@@ -233,6 +233,52 @@ It seems we can rule out the hypothesis of a direct transmission of pneumonic pl
 - it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
 - the kid was __not__ infected by his dad, but from a zoonotic source
 
+
+
+# Epidemic start
+
+Here we analyse the linelist of the first few cases in Corréjac, followed by La Canourgue.
+
+```{r}
+file_path <- here::here("data", "early_linelist.ods")
+x <- rio::import(file_path, sheet = "linelist") %>% 
+  tibble() %>% 
+  mutate(date_of_death = as.Date(date_of_death, format = "%d/%m/%Y"))
+x
+```
+
+We build a simple epidemic curve for Corréjac:
+
+```{r}
+library(incidence2)
+
+x %>% 
+  filter(location == "Corréjac") %>% 
+  incidence("date_of_death", groups = "family", interval = 7) %>% 
+  plot(fill = "family", colour_palette = muted, angle = 45) + 
+  labs(
+    title = "Early epicurve by date of death - Corréjac",
+    x = "Date of death", 
+    y = "Number of cases"
+    )
+
+i <- x %>% 
+  filter(location == "Corréjac") %>% 
+  incidence("date_of_death", groups = "family") %>% 
+  complete_dates()
+
+```
+
+To estimate the reproduction number, we'll need to account for the fact that we are looking a deaths, and account for the uncertainty in delays from onset to death. This said, as a first approximation we can use _earlyR_ and EpiEstim on the daily epicurve:
+
+```{r}
+library(earlyR)
+# R_early <- get_R(i$count, si_mean = 8, si_sd = 2)
+
+
+library(EpiEstim)
+
+```
 
 
 
