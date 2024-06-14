@@ -21,9 +21,15 @@ knitr::opts_chunk$set(
 
 # Preamble
 
-In this report, we investigate some of the key elements of the early stages of the Plague epidemic in Gévaudan, which started in 1720 in the village of Correjac, soon followed by the town of La Canourgue. 
+In this report, we investigate some of the key elements of the early stages of
+the bubonic Plague epidemic in Gévaudan, which started in 1720 in the village of
+Correjac, soon followed by the town of La Canourgue.
 
-The analyses will rely on estimates of various epidemiological parameters, such as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or delay distributions including the incubation period, the infectious period, or the serial interval. Where possible, these quantities are directly estimated from available date. Failing that, we use estimates from the literature.
+The analyses will rely on estimates of various epidemiological parameters, such
+as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or
+delay distributions including the incubation period, the infectious period, or
+the serial interval. Where possible, these quantities are directly estimated
+from available date. Failing that, we use estimates from the literature.
 
 
 # Estimates of key epidemiological features
@@ -32,23 +38,25 @@ The analyses will rely on estimates of various epidemiological parameters, such 
 
 ### Incubation period
 
-The incubation period has been characterised for Pneumonic plague as a lognormal distribution with mean 4.3 and standard deviation 1.8 [@Gani2004-hc]. Here we recreate this distribution using `distcrete`:
+The incubation period is described in multiple papers but a general consensus
+seems to be around 2-6 days (see separate literature review). We build a
+discretized log-normal distribution compatible with these observations:
 
 ```{r}
 library(distcrete)
 library(tidyverse)
 
-incub_pneumo <- distcrete(
+incub <- distcrete(
   "lnorm", 
-  meanlog = log(4.3), 
-  sdlog = log(1.8), 
+  meanlog = log(3.5), 
+  sdlog = log(1.5), 
   interval = 1, 
-  w = 0
+  w = 1
   )
 
 incub_dat <- tibble(
-  Day = 0:20,
-  p = incub_pneumo$d(0:20)
+  Day = 0:15,
+  p = incub$d(0:15)
   )
 
 incub_dat %>% 
@@ -58,7 +66,7 @@ incub_dat %>%
   labs(
     x = "Time from infection to symptom onset (days)", 
     y = "Probability", 
-    title = "Incubation time distribution - pneumonic plague", 
+    title = "Incubation time distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
@@ -66,22 +74,25 @@ incub_dat %>%
 
 ### Infectious period
 
-The infectious period has been characterised for Pneumonic plague as a lognormal distribution with mean 2.5 and standard deviation reported as 1.2 [@Gani2004-hc]. This is likely an error though, as the graph presented in that paper is more compatible with an SD of 1.4, which we use here. Note that because this form had near 100% CFR, this is also the distribution of the time from onset of symptoms to death. 
+The infectious period distribution is built similarly to match data from the
+literature, where for historical outbreaks death is reported to take place
+within 3 to 5 days post-symptom onset. Note that because this form had near 100%
+CFR, this is also the distribution of the time from onset of symptoms to death.
 
 ```{r}
 
-infec_pneumo <- distcrete(
+infec <- distcrete(
   "lnorm", 
-  meanlog = log(2.5), 
+  meanlog = log(3), 
   sdlog = log(1.4), 
   interval = 1, 
-  w = 0
+  w = 1
   )
 
 
 infec_dat <- tibble(
-  Day = 0:7,
-  p = infec_pneumo$d(0:7)
+  Day = 0:15,
+  p = infec$d(0:15)
   )
 
 infec_dat %>% 
@@ -91,11 +102,20 @@ infec_dat %>%
   labs(
     x = "Time from symptom onset to death (days)", 
     y = "Probability", 
-    title = "Infectious period distribution - pneumonic plague", 
+    title = "Infectious period distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
 ```
 
+We note that the distribution is well in line with the mean duration of fatal,
+untreated bubonic plague of 3.6 days [@noauthor_1907-bh]:
+
+```{r }
+
+## mean of 100 000 values from the distribution:
+mean(infec$r(1e5))
+
+```
 
 
 # Patient zero: the convict from Marseille
@@ -161,7 +181,11 @@ lambda_res_mle
 
 ```
 
-We find some more likely values than others, and this leans towards fairly low rates ranging from `r round(min(lambda_res_mle$MLE), 5)` to `r round(min(lambda_res_mle$MLE), 5)`. We calculate the corresponding probabilities that these events occurred using the MLE:
+We find some more likely values than others, and this leans towards fairly low
+rates ranging from `r round(min(lambda_res_mle$MLE), 4)` to 
+`r round(max(lambda_res_mle$MLE), 4)`. 
+We calculate the corresponding probabilities that these events occurred using
+the MLE:
 
 ```{r}
 
@@ -180,7 +204,7 @@ The resulting probabilities are quite low, ranging from
 
 # The first case after Jean
 
-It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Pneumonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
 
 ```{r}
 ## calculate possible delays from infection to death
@@ -188,7 +212,7 @@ child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
 ## convolve using 1e5 draws from distributions
-sim_delay_inf_death <- incub_pneumo$r(1e5) + infec_pneumo$r(1e5)
+sim_delay_inf_death <- incub$r(1e5) + infec$r(1e5)
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
@@ -200,7 +224,7 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death - pneumonic plague",
+    title = "Simulated delays from infection to death - bubonic plague",
     subtitle = "dashed lines: JQ -> child transmission",
     x = "Days from infection to death", 
     y = "Frequency"
@@ -217,7 +241,7 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay - 5, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death - pneumonic plague", 
+    title = "Simulated delays from infection to death - bubonic plague", 
     subtitle = "dashed lines: JQ -> child transmission",
     x = "Days from infection to death", 
     y = "Frequency"
@@ -228,7 +252,7 @@ child_delay_pval_alt
 mean(child_delay_pval_alt)
 ```
 
-It seems we can rule out the hypothesis of a direct transmission of pneumonic plague. Possible aternatives are:
+It seems we can rule out the hypothesis of a direct transmission of bubonic plague. Possible aternatives are:
 
 - it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
 - the kid was __not__ infected by his dad, but from a zoonotic source
