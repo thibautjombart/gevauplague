@@ -446,8 +446,9 @@ plot(prior_R, xlim = c(0, 3), main = "Prior for R")
 Rates of zoonotic introductions are usually harder to estimate, so we use fairly uninformative priors for $\lambda_z$:
 
 ```{r}
-prior_zoo <- function(x, log = FALSE) dexp(x, 2, log = log)
-plot(prior_zoo, xlim = c(0, 2), main = "Prior for lambda_z")
+#prior_zoo <- function(x, log = FALSE) dexp(x, 0.2, log = log)
+prior_zoo <- function(x, log = FALSE) dunif(x, 0, 10, log = log)
+plot(prior_zoo, xlim = c(0, 5), main = "Prior for lambda_z")
 ```
 
 
@@ -556,9 +557,9 @@ compute_post <- function(data,
 
 ## @param n_iter the number of iterations of the MCMC; defaults to 1000
 ## @param sd_zoo the standard deviation of the normal proposal distribution for
-##   the rate of zoonotic introductions; defaults to 0.05
+##   the rate of zoonotic introductions
 ## @oaram sd_R the standard deviation of the normal proposal distribution for
-##   the effective reproduction number; defaults to 0.1
+##   the effective reproduction number
 ## @param ini_zoo the initial value of the daily rate of zoonotic introduction
 ## @param ini_R the initial value of the effective reproduction number
 
@@ -571,8 +572,8 @@ estimate_params <- function(date_death = x$date_of_death,
                             d_R = prior_R,
                             r_incub = incub$r, 
                             r_infec = infec$r, 
-                            sd_zoo = 0.05, 
-                            sd_R = 0.1, 
+                            sd_zoo = 0.1, 
+                            sd_R = 0.4, 
                             ini_zoo = runif(1, 0, 1), 
                             ini_R = runif(1, 0, 3)) {
   
@@ -586,7 +587,7 @@ estimate_params <- function(date_death = x$date_of_death,
                            d_gentime,
                            d_zoo, 
                            d_R)
-  current_params <- params
+  new_params <- current_params <- params
   
   ### Build output structure
   mcmc <- list(
@@ -599,9 +600,9 @@ estimate_params <- function(date_death = x$date_of_death,
   accept_R <- 0
   
   for (i in seq_len(n_iter)) {
+    
     #### make new augmented data
     aug_data <- make_aug_data(date_death, r_incub, r_infec)
-    new_params <- current_params
     current_post <- compute_post(aug_data,
                                  current_params, 
                                  d_incub, 
@@ -611,7 +612,7 @@ estimate_params <- function(date_death = x$date_of_death,
                                  d_R)
     
     #### propose new zoo
-    new_params$zoo <- new_params$zoo + rnorm(1, sd = sd_zoo)
+    new_params$zoo <- current_params$zoo + rnorm(1, sd = sd_zoo)
     
     #### accept/reject zoo
     new_post <- compute_post(aug_data,
@@ -631,7 +632,7 @@ estimate_params <- function(date_death = x$date_of_death,
     }
       
     #### propose new R
-    new_params$R <- new_params$R + rnorm(1, sd = sd_R)
+    new_params$R <- current_params$R + rnorm(1, sd = sd_R)
     
     #### accept/reject R
     new_post <- compute_post(aug_data,
@@ -639,7 +640,7 @@ estimate_params <- function(date_death = x$date_of_death,
                              d_incub, 
                              d_infec, 
                              d_gentime,
-                             d_R, 
+                             d_zoo, 
                              d_R)
     p_accept_R <- exp(new_post - current_post)
     if (runif(1) <= p_accept_R) { # accept move
@@ -666,6 +667,70 @@ estimate_params <- function(date_death = x$date_of_death,
 }
   
 ```
+
+We run the chains for a few iterations:
+
+```{r}
+
+system.time(res <- estimate_params(n_iter = 10))
+head(res)
+tail(res)
+
+```
+
+We can try to run several chains in parallel:
+
+```{r}
+
+# library(future.apply)
+# plan(multisession, workers = 8)
+# res <- future_lapply(1:8, function(i) estimate_params(n_iter = 100))
+
+#res <- lapply(1:8, function(i) 
+#  cbind.data.frame(estimate_params(n_iter = 100), chain = i)
+#  )
+
+res <- readRDS("res_1000iter_8chains_04-10-2024.rds")
+
+#plan(sequential)
+
+chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]]))
+names(chains) <- gsub("mcmc.", "", names(chains))
+chains$chain <- factor(chains$chain)
+
+
+## Plots
+ggplot(chains) + 
+  geom_line(aes(x = step, y = post, color = chain)) + 
+  labs(title = "Log-posterior traces")
+
+## Plots
+ggplot(chains) + 
+  geom_line(aes(x = step, y = R, color = chain)) + 
+  labs(title = "Trace of R values")
+
+ggplot(chains) + 
+  geom_line(aes(x = step, y = zoo, color = chain)) + 
+  labs(title = "Trace of lambda_z values")
+
+chains %>% 
+  filter(step > 25) %>% 
+  ggplot(aes(x = R)) + 
+  geom_density() + 
+  geom_rug() +
+  labs(title = "Posterior distribution of R")
+
+chains %>% 
+  filter(step > 25) %>% 
+  ggplot(aes(x = zoo)) + 
+  geom_density() + 
+  geom_rug() +
+  labs(
+    title = "Posterior distribution of lambda_z", 
+    x = "Daily rate of zoonotic introductions")
+
+```
+
 
 
 
