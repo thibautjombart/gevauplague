@@ -461,9 +461,10 @@ The following code implements the model.
 ## This will return a list with all the data needed for likelihood calculation.
 ## Note that dates of deaths are converted to integers, with 0 the earliest death.
 
-make_aug_data <- function(r_incub = incub$r, 
-                          r_infec = infec$r, 
-                          date_death = x$date_of_death) {
+make_aug_data <- function(date_death = x$date_of_death,
+                          r_incub = incub$r, 
+                          r_infec = infec$r 
+                          ) {
   if (any(is.na(date_death))) {
     msg <- "Some dates of death are missing"
     stop(msg)
@@ -539,7 +540,7 @@ compute_priors <- function(params,
 }
 
 ## Compute log-posterior
-compute_post <- function(x, 
+compute_post <- function(data, 
                          params, 
                          d_incub = incub$d, 
                          d_infec = infec$d, 
@@ -547,19 +548,123 @@ compute_post <- function(x,
                          d_zoo = prior_zoo, 
                          d_R = prior_R
                          ) {
-  compute_loglike(x, params, d_incub, d_infec, d_gentime) + 
+  compute_loglike(data, params, d_incub, d_infec, d_gentime) + 
     compute_priors(params, d_zoo, d_R)
 }
 
-## Function to propose new parameter values
+## Function implementing the whole MCMC procedure
 
-## MCMC
+## @param n_iter the number of iterations of the MCMC; defaults to 1000
+## @param sd_zoo the standard deviation of the normal proposal distribution for
+##   the rate of zoonotic introductions; defaults to 0.05
+## @oaram sd_R the standard deviation of the normal proposal distribution for
+##   the effective reproduction number; defaults to 0.1
+## @param ini_zoo the initial value of the daily rate of zoonotic introduction
+## @param ini_R the initial value of the effective reproduction number
 
-loglike <- function(params) {
+estimate_params <- function(date_death = x$date_of_death,
+                            n_iter = 1e3,
+                            d_incub = incub$d, 
+                            d_infec = infec$d, 
+                            d_gentime = gentime$d,
+                            d_zoo = prior_zoo, 
+                            d_R = prior_R,
+                            r_incub = incub$r, 
+                            r_infec = infec$r, 
+                            sd_zoo = 0.05, 
+                            sd_R = 0.1, 
+                            ini_zoo = runif(1, 0, 1), 
+                            ini_R = runif(1, 0, 3)) {
   
+  ### Initialize MCMC
+  params <- list(zoo = ini_zoo, R = ini_R)
+  aug_data <- make_aug_data(date_death, r_incub, r_infec)
+  ini_post <- compute_post(aug_data, 
+                           params, 
+                           d_incub, 
+                           d_infec, 
+                           d_gentime,
+                           d_zoo, 
+                           d_R)
+  current_params <- params
+  
+  ### Build output structure
+  mcmc <- list(
+    step = seq_len(n_iter),
+    post = double(n_iter),
+    zoo = double(n_iter),
+    R = double(n_iter)
+  )
+  accept_zoo <- 0
+  accept_R <- 0
+  
+  for (i in seq_len(n_iter)) {
+    #### make new augmented data
+    aug_data <- make_aug_data(date_death, r_incub, r_infec)
+    new_params <- current_params
+    current_post <- compute_post(aug_data,
+                                 current_params, 
+                                 d_incub, 
+                                 d_infec, 
+                                 d_gentime,
+                                 d_zoo, 
+                                 d_R)
+    
+    #### propose new zoo
+    new_params$zoo <- new_params$zoo + rnorm(1, sd = sd_zoo)
+    
+    #### accept/reject zoo
+    new_post <- compute_post(aug_data,
+                             new_params, 
+                             d_incub, 
+                             d_infec, 
+                             d_gentime,
+                             d_zoo, 
+                             d_R)
+    p_accept_zoo <- exp(new_post - current_post)
+    if (runif(1) <= p_accept_zoo) { # accept move
+      current_params$zoo <- new_params$zoo
+      current_post <- new_post
+      accept_zoo <- accept_zoo + 1
+    } else { # reject move
+      new_params$zoo <- current_params$zoo
+    }
+      
+    #### propose new R
+    new_params$R <- new_params$R + rnorm(1, sd = sd_R)
+    
+    #### accept/reject R
+    new_post <- compute_post(aug_data,
+                             new_params, 
+                             d_incub, 
+                             d_infec, 
+                             d_gentime,
+                             d_R, 
+                             d_R)
+    p_accept_R <- exp(new_post - current_post)
+    if (runif(1) <= p_accept_R) { # accept move
+      current_params$R <- new_params$R
+      current_post <- new_post
+      accept_R <- accept_R + 1
+    } else { # reject move
+      new_params$R <- current_params$R
+    }
+    
+    
+    ### store info from this iteration
+    mcmc$post[i] <- current_post
+    mcmc$zoo[i] <- current_params$zoo
+    mcmc$R[i] <- current_params$R
+  }
+  
+  list(
+    mcmc = data.frame(mcmc),
+    accept_zoo = accept_zoo / n_iter, 
+    accept_R = accept_R / n_iter
+  )
   
 }
-
+  
 ```
 
 
