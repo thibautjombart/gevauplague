@@ -458,37 +458,97 @@ The following code implements the model.
 ```{r}
 
 ## Function to generate augmented data
-make_aug_data <- function(
-    deaths = x$date_of_death, 
-    f = infec$r) {
-    deaths - f(length(deaths))
+## This will return a list with all the data needed for likelihood calculation.
+## Note that dates of deaths are converted to integers, with 0 the earliest death.
+
+make_aug_data <- function(r_incub = incub$r, 
+                          r_infec = infec$r, 
+                          date_death = x$date_of_death) {
+  if (any(is.na(date_death))) {
+    msg <- "Some dates of death are missing"
+    stop(msg)
+  }
+  n <- length(date_death)
+  date_death <- as.integer(date_death - min(date_death))
+  date_onset <- date_death - r_infec(n)
+  date_infection <- date_onset - r_incub(n)
+  out <- data.frame(
+    infection = date_infection, 
+    onset = date_onset, 
+    death = date_death
+  )
+      
+  ## Use this to have 0 as the earliest date; otherwise we do get some negative
+  ## dates:
+  ## data.frame(lapply(a, function(x) x - min(a)))
+  out
 }
 
+
+
 ## Function to calculate the log-likelihood
-compute_loglike <- function(x, params, w = si$d(0:50)) {
-  ### turn data into time since first case, exclude 1st one
-  y <- as.integer(x - min(x))
-  last_day <- max(y)
-  
-  ## calculate incidence for the whole time period, do no miss the zeros
-  incid <- sapply(seq(0, last_day, by = 1), function(i) sum(y == i))
+## 
+## @param data: a data.frame with 3 columns as returned by make_aug_data()
+## @param params: a list with two items: zoo, and R, in this order
+## @param d_incub: a PMF function for the incubation period
+## @param d_infec: a PMF function for the infectious period
+## @param d_gentime: a PMF function for the generation time
+
+compute_loglike <- function(data, 
+                            params, 
+                            d_incub = incub$d, 
+                            d_infec = infec$d, 
+                            d_gentime = gentime$d) {
  
-  ## get relative FOIs
-  lambdas_p2p <- EpiEstim::overall_infectivity(incid, w)
-  lambdas <- params$zoo + lambdas_p2p * params$R
-  out <- dpois(incid, lambdas, log = TRUE)
-  sum(na.omit(out))
+  ### There are 3 components to the likelihood:^
+  ### 
+  ### 1. delay from onset to death (infectious period)
+  ### 2. delay from infection to onset (incubation time)
+  ### 3. incidence of infections from Hawkes process
+   
+  ### Component 1
+  p_1 <- sum(d_infec(data$death - data$onset, log = TRUE))
+  
+  ### Component 2
+  p_2 <- sum(d_incub(data$onset - data$infection, log = TRUE))
+  
+  ### Component 3
+  first_day <- min(data$infection)
+  last_day <- max(data$infection)
+  
+  #### calculate incidence for the whole time period, do no miss the zeros
+  incid <- sapply(
+    seq(first_day, last_day, by = 1), 
+    function(i) sum(data$infection == i)
+  )
+ 
+  #### get relative FOIs - check that w indeed start at 1 in EpiEstim
+  lambdas_p2p <- EpiEstim::overall_infectivity(incid, d_gentime(0:100))
+  lambdas <- params$zoo + (lambdas_p2p * params$R)
+  p_3 <- sum(na.omit(dpois(incid, lambdas, log = TRUE)))
+  
+  p_1 + p_2 + p_3
 }
   
   
 ## Function to calculate log-priors
-compute_priors <- function(params) {
-  prior_R(params$R, log = TRUE) + prior_zoo(params$zoo, log = TRUE)
+compute_priors <- function(params, 
+                           d_zoo = prior_zoo, 
+                           d_R = prior_R) {
+  d_zoo(params$zoo, log = TRUE) + d_R(params$R, log = TRUE)
 }
 
 ## Compute log-posterior
-compute_post <- function(x, params, w = si$d(0:50)) {
-  compute_loglike(x, params, w) + compute_priors(params)
+compute_post <- function(x, 
+                         params, 
+                         d_incub = incub$d, 
+                         d_infec = infec$d, 
+                         d_gentime = gentime$d,
+                         d_zoo = prior_zoo, 
+                         d_R = prior_R
+                         ) {
+  compute_loglike(x, params, d_incub, d_infec, d_gentime) + 
+    compute_priors(params, d_zoo, d_R)
 }
 
 ## Function to propose new parameter values
