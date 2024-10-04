@@ -27,7 +27,7 @@ Correjac, soon followed by the town of La Canourgue.
 
 The analyses will rely on estimates of various epidemiological parameters, such
 as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or
-delay distributions including the incubation period, the sitious period, or
+delay distributions including the incubation period, the infectious period, or
 the serial interval. Where possible, these quantities are directly estimated
 from available date. Failing that, we use estimates from the literature.
 
@@ -64,7 +64,7 @@ incub_dat %>%
   geom_col(fill = 4) +
   theme_bw() +
   labs(
-    x = "Time from sition to symptom onset (days)", 
+    x = "Time from infection to symptom onset (days)", 
     y = "Probability", 
     title = "Incubation time distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
@@ -89,10 +89,9 @@ infec <- distcrete(
   w = 1
   )
 
-
 infec_dat <- tibble(
   Day = 0:15,
-  p = si$d(0:15)
+  p = infec$d(0:15)
   )
 
 infec_dat %>% 
@@ -130,13 +129,13 @@ We will explore 3 scenarios, with varying durations for the trip, which we posit
 - 12 days (~ 25km per day)
 - 20 days (~ 15 km per day)
 
-We do not know what the daily rate of sition $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
+We do not know what the daily rate of infection $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
 
 $$
 \mathcal{L(\lambda)} = p(T | \lambda) = (e^{-\lambda})^T (1 - e^{-\lambda})
 $$
 
-where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of sition from the sited bundle. 
+where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of infection from the sited bundle. 
 
 Let us look at these profiles, ensuring we re-standardise both densities to 1 to make them comparable, as they rely on datasets of different sizes:
 
@@ -171,9 +170,9 @@ lambda_res_long %>%
   geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
   theme_bw() + 
   labs(
-    x = "Daily rate of sition (\U03BB)",
+    x = "Daily rate of infection (\U03BB)",
     y = "Likelihood",
-    title = "Estimation of the probability of daily sition"
+    title = "Estimation of the probability of daily infection"
   ) +
   scale_x_continuous(n.breaks = 20)
 
@@ -199,15 +198,15 @@ lambda_res_mle
 ```
 The resulting probabilities are quite low, ranging from 
 `r round(100*lambda_res_mle$proba[3], 1)`% chances for a trip of 20 days, to  
-`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the sition from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
+`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the infection from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
 
 
 # The first case after Jean
 
-It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of sition (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
 
 ```{r}
-## calculate possible delays from sition to death
+## calculate possible delays from infection to death
 child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
@@ -224,9 +223,9 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from sition to death - bubonic plague",
+    title = "Simulated delays from infection to death - bubonic plague",
     subtitle = "dashed lines: JQ -> child transmission",
-    x = "Days from sition to death", 
+    x = "Days from infection to death", 
     y = "Frequency"
     )
 
@@ -241,9 +240,9 @@ qplot(sim_delay_inf_death) +
   geom_vline(xintercept = child_delay - 5, color = 2, linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from sition to death - bubonic plague", 
+    title = "Simulated delays from infection to death - bubonic plague", 
     subtitle = "dashed lines: JQ -> child transmission",
-    x = "Days from sition to death", 
+    x = "Days from infection to death", 
     y = "Frequency"
     )
 
@@ -304,7 +303,28 @@ There is one key question here: do we assume Corréjac and La Canourgue were dis
 
 ## A transmission model for bubonic plague
 
-A branching process will likely be best at capturing small fluctuations in case incidence over time, whilst neglecting the impact of the depletion of susceptible individuals. However we need to allow for a background rate of zoonotic introduction in addition to the classical person-to-person transmission [@Wallinga2004-al]. As such, we will be using a Hawkes process [@Hawkes1971-iz] to model the case incidence at time $t$ (noted $y_t$) such that:
+A branching process will likely be best at capturing small fluctuations in case incidence over time, whilst neglecting the impact of the depletion of susceptible individuals. However we need to allow for a background rate of zoonotic introduction in addition to the classical person-to-person transmission [@Wallinga2004-al]. As such, we will be using a Hawkes process [@Hawkes1971-iz] to model the case incidence over time, using augmented data to make up for the lack of precise information on dates of symptom onset and infection.
+
+### Notations
+
+Data and augmented data:
+
+- $i = 1, ..., n$: index of individuals
+- $t = 1, ..., T$: time index
+- $d_i$: date of death of case $i$ (data)
+- $O_i$: date of symptom onset of case $i$ (augmented data)
+- $I_i$: date of infection of case $i$ *(augmented data)
+- $Y_t$: incidence of new infections at time $t$ (augmented data, derived from $I_i$)
+
+Distributions:
+
+- $\mathcal{F}$ incubation period distribution (so we have $(O_i - I_i) \sim \mathcal{F}(.)$)
+- $\mathcal{G}$ infectious period distribution (so we have$(D_i - O_i) \sim \mathcal{G}(.)$)
+- $\mathcal{H}$ generation time distribution, obtained from the convolution
+$\mathcal{F} \ast \mathcal{G} = \mathcal{H}$
+
+
+
 
 \begin{equation}
 y_t \sim \mathcal{P}(\lambda_t)
@@ -324,7 +344,7 @@ p(d_i - o_i) = f(.)
 \end{equation}
 
 
-where $f(.)$ is the distribution of the sitious period duration.
+where $f(.)$ is the distribution of the infectious period duration.
 
 The Hawkes process described above provides the following likelihood formulation:
 
@@ -439,7 +459,10 @@ compute_post <- function(x, params, w = si$d(0:50)) {
 
 ## MCMC
 
-loglike <- function(params)
+loglike <- function(params) {
+  
+  
+}
 
 ```
 
