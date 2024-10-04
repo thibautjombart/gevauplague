@@ -307,7 +307,7 @@ A branching process will likely be best at capturing small fluctuations in case 
 
 ### Notations
 
-Data and augmented data:
+#### Data and augmented data
 
 - $i = 1, ..., n$: index of individuals
 - $t = 1, ..., T$: time index
@@ -316,84 +316,120 @@ Data and augmented data:
 - $I_i$: date of infection of case $i$ *(augmented data)
 - $Y_t$: incidence of new infections at time $t$ (augmented data, derived from $I_i$)
 
-Distributions:
+#### Distributions
 
-- $\mathcal{F}$ incubation period distribution (so we have $(O_i - I_i) \sim \mathcal{F}(.)$)
-- $\mathcal{G}$ infectious period distribution (so we have$(D_i - O_i) \sim \mathcal{G}(.)$)
-- $\mathcal{H}$ generation time distribution, obtained from the convolution
+- $\mathcal{F}$: incubation period distribution (so we have $(O_i - I_i) \sim \mathcal{F}(.)$)
+- $\mathcal{G}$: infectious period distribution (so we have$(D_i - O_i) \sim \mathcal{G}(.)$)
+- $\mathcal{H}$: generation time distribution, obtained from the convolution
 $\mathcal{F} \ast \mathcal{G} = \mathcal{H}$
 
+Both $\mathcal{F}$ and $\mathcal{G}$ are drawn from the literature.
+
+#### Parameters
+
+- $\lambda_z$: the rate of zoonotic introduction, assumed constant over time
+- $R$: the effective reproduction number, assumed constant over time
 
 
+### The model
 
-\begin{equation}
-y_t \sim \mathcal{P}(\lambda_t)
-\end{equation}
-
-with:
-
-\begin{equation}
-\lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R y_s w(t - s)
-\end{equation}
-
-where $\lambda_z$ is the background rate of zoonotic introductions, $R$ is the effective reproduction number (assumed constant over the time period considered), and $w(.)$ is usually the probability mass function of the serial interval distribution. Unfortunately, here we do not know dates of onset, only dates of deaths. Denoting $o_i$ and $d_i$ the dates of onset and death of case $i$, we have:
+We use a Bayesian framework to describe the distribution of parameters ($\theta$), data ($x$), augmented data ($X$), where the posterior distribution is defined as:
 
 \begin{equation}
-\label{eqn:aug}
-p(d_i - o_i) = f(.)
+p(\theta | x) \propto p(x | \theta) p(\theta)
 \end{equation}
 
+where $p(x | \theta)$ is the likelihood function and $p(\theta)$ the prior distributions.
 
-where $f(.)$ is the distribution of the infectious period duration.
+The likelihood can be written as:
+\begin{eqnarray}
+p(x | \theta) & = & p(d, O, I | \lambda_z, R) \\
+& = & p(d | O) p(O | I) p(I | \lambda_z, R) \\
+& = & \left( \prod_i p(d_i | O_i) \prod_i p(O_i | I_i) \right) p(I | \lambda_z, R)\\
+& = & \left( \prod_i \mathcal{F}(d_i - O_i) \mathcal{G}(O_i - I_i) \right) p(I | \lambda_z, R)
+\end{eqnarray}
 
-The Hawkes process described above provides the following likelihood formulation:
+The calculation of $p(I|\lambda_z, R)$ is defined by the Hawkes process for the incidence $Y$:
+\begin{eqnarray}
+p(I | \lambda_z, R) & = & p(Y | \lambda_z, R) \\
+& = & \prod_{t} p(Y_t | Y_1, ..., Y_{t-1}, \lambda_z, R)
+\end{eqnarray}
+
+where the incidence $Y_t$ is governed by:
 
 \begin{equation}
-p(y | \lambda_z, R, w, f) = \prod_t p(y_t | y_1, ..., y_{t-1}, \lambda_z, R)
+Y_t \sim \mathcal{P}(\lambda_t)
 \end{equation}
 
-This likelihood can be used in a Bayesian framework where:
+where $\mathcal{P}(.)$ is the probability mass function of a Poisson distribution, and with:
 
 \begin{equation}
-p(\lambda_z, R | y) = p(y | \lambda_z, R) p(\lambda_z, R) =
-p(y | \lambda_z, R, w, f) p(\lambda_z) p(R)
+\lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R Y_s \mathcal{H}(t - s)
 \end{equation}
 
-where the last two terms are prior distributions for $\lambda_z$ and $R$.
 
-We can sample from this posterior using the following MCMC, after setting any non-zero probability initial state:
+Finally, we assume independent priors for $\lambda_z$ and $R$ such that:
+\begin{equation}
+p(\theta) = p(\lambda_z, R) = p(\lambda_z) p(R)
+\end{equation}
 
-1. create augmented data $y$ using equation \ref{eqn:aug}.
-2. apply Metropolis algorithm iteration
+
+### Estimation process
+
+We can sample from the posterior distribution using the Metropolis algorithm with augmented data with the following process:
+
+1. draw augmented data $O$ using $d_i - O_i \sim \mathcal{F}$
+2. draw augmented data $I$ using $O_i - I_i \sim \mathcal{G}$
+3. propose (using symmetric proposal distributions) new values for $\theta^*$ and accept/reject these values with probability: $max(1, \frac{p(\theta^*|x)}{p(\theta|x)})$, where $\theta$ represents the previous parameter state; in practice, separate movements are used for $\lambda_z$ and $R$
 3. go back to 1 until desired number of iterations reached
 
 
 ## Distributions
 
-### Serial interval
+### Generation time
 
-We build the serial interval distribution using an average of 7.4 days [@Dean2019-ic] and a coefficient of variation of 0.9 in line with the original publication:
+The generation time distribution $\mathcal{H}$ can be calculated by convolving the incubation time $\mathcal{F}$ and the infectious period distribution $\mathcal{G}$.
 
 ```{r}
-si_params <- epitrix::gamma_mucv2shapescale(7.4, 0.9)
-si <- distcrete(
-  "gamma", shape = si_params$shape, scale = si_params$scale, 
-  w = 1, interval = 1)
+## PMF for delays of 0, 1, ...
+gentime_pmf <- convolve(incub$d(0:100), rev(infec$d(0:100)), type = "open")
+gentime_pmf[1] <- 0
+gentime_pmf <- gentime_pmf / sum(gentime_pmf) # superfluous
 
-si_dat <- tibble(
+## emulate density function
+gentime_d <- function(x, log = FALSE) {
+  ## make sure we don't get out of bounds
+  x <- as.integer(x)
+  x[x < 0] <- 0
+  x[x > 100] <- 100
+  out <- gentime_pmf[x+1]
+  if (log) {
+    out <- log(out)
+  }
+  out
+}
+
+## emulate rng function
+gentime_r <- function(n) {
+  sample(0:100, size = n, replace = TRUE, prob = gentime_d(0:100))
+}
+
+gentime <- list(d = gentime_d, r = gentime_r)
+
+gt_dat <- tibble(
   Day = 0:25,
-  p = si$d(0:25)
+  p = gentime$d(0:25)
   )
 
-si_dat %>% 
+gt_dat %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 2) +
   theme_bw() +
   labs(
-    x = "Time from primary to secondary symptom onset", 
+    x = "Time from primary to secondary infection", 
     y = "Probability", 
-    title = "Serial interval distribution - bubonic plague", 
-    subtitle = "(discretized gamma)")
+    title = "Generation time distribution - bubonic plague"
+    )
 
 ```
 
