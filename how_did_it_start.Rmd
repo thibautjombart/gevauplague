@@ -1,11 +1,12 @@
 ---
-title: "How did it start?"
+title: "Revisiting the early stage of the 1720 plague epidemic in Gévaudan"
 author: "Thibaut Jombart, Henry Mouysset"
-date: "2024-03-22"
+date: "8 October 2024"
 output:
   pdf_document: default
   html_document: default
 bibliography: biblio.bib
+csl: plos-biology.csl
 ---
 
 ```{r setup, include=FALSE}
@@ -21,15 +22,19 @@ knitr::opts_chunk$set(
 
 # Preamble
 
-In this report, we investigate some of the key elements of the early stages of
-the bubonic Plague epidemic in Gévaudan, which started in 1720 in the village of
-Correjac, soon followed by the town of La Canourgue.
+In this report, we revisit some of the key elements of the early stages of the
+bubonic Plague epidemic in Gévaudan, which started in 1720 in the village of
+Correjac, soon followed by the town of La Canourgue. Historical data suggest
+that the epidemic was initiated by a convict who travelled from Marseille to
+Saint-Laurent-d'Olt, where he infected Jean Quintin, who then seeded the
+epidemic which would first affect his village before spreading to the rest of
+Gévaudan.
 
-The analyses will rely on estimates of various epidemiological parameters, such
-as the case fatality ratio (CFR), the basic reproduction number ($R_0$), or
-delay distributions including the incubation period, the infectious period, or
-the serial interval. Where possible, these quantities are directly estimated
-from available date. Failing that, we use estimates from the literature.
+We re-analyse this scenario by combining historical data on the dates of deaths
+of the first few cases, alongside published estimates of the incubation time or
+infectious period distributions. A branching process model with augmented data
+is used for jointly estimating the effective reproduction number and the rate of
+zoonotic introductions in the early stages of the epidemic.
 
 
 # Estimates of key epidemiological features
@@ -39,8 +44,10 @@ from available date. Failing that, we use estimates from the literature.
 ### Incubation period
 
 The incubation period is described in multiple papers but a general consensus
-seems to be around 2-6 days (see separate literature review). We build a
-discretized log-normal distribution compatible with these observations:
+seems to be around 2-6 days [@noauthor_1907-bh; @Dennis2006-fw; @Kitasato1894-dj; @Clemow1900-nm; @Siegrist2009-qm; @Walloe2008-wz; @Scott2001-al]. 
+
+We build a discretized log-normal distribution compatible with these
+observations:
 
 ```{r}
 library(distcrete)
@@ -76,8 +83,10 @@ incub_dat %>%
 
 The infectious period distribution is built similarly to match data from the
 literature, where for historical outbreaks death is reported to take place
-within 3 to 5 days post-symptom onset. Note that because this form had near 100%
-CFR, this is also the distribution of the time from onset of symptoms to death.
+within 3 to 5 days post-symptom onset [@Dean2019-ic; @McEvedy1988-jh; @Walloe2008-wz; @noauthor_1907-bh]. 
+
+Note that because this form had near 100% CFR, this is also the distribution of
+the time from onset of symptoms to death.
 
 ```{r}
 
@@ -119,25 +128,34 @@ mean(infec$r(1e5))
 
 # Patient zero: the convict from Marseille
 
-The theory of the convict walking all the way from Marseille with an sited bundle of wool to eventually sit Jean Quintin in Saint Laurent d’Olt is suspicious: the man would have had to not get sited during his entire trip, to then sit JQ after a fairly brief encounter. 
+The theory of the convict walking all the way from Marseille with an infected
+bundle of wool to eventually infect Jean Quintin in Saint Laurent d’Olt is
+suspicious: the man would have had to not get infected during his entire trip,
+to then infect JQ after a fairly brief encounter.
 
-The trip by foot via current roads is 273 km, and would have likely been longer using roads at the time. Especially since patrols were restricting movement in the area, and would have demanded some extra time to be avoided. 
+The trip by foot via current roads is 273 km, and would have likely been longer
+using roads at the time. Especially since patrols were restricting movement in
+the area, and would have demanded some extra time to be avoided.
 
-We will explore 3 scenarios, with varying durations for the trip, which we posit was at least about 300 km: 
+We will explore 3 scenarios, with varying durations for the trip, which we posit
+was at least about 300 km:
 
 - 7 days (very optimistic, > 40 km per day)
 - 12 days (~ 25km per day)
 - 20 days (~ 15 km per day)
 
-We do not know what the daily rate of infection $\lambda$ from the wool bundle, but we can derive a likelihood profile for each scenario, using:
+We do not know what the daily rate of infection $\lambda$ from the wool bundle
+was, but we can derive a likelihood profile for each scenario, using:
 
 $$
 \mathcal{L(\lambda)} = p(T | \lambda) = (e^{-\lambda})^T (1 - e^{-\lambda})
 $$
 
-where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the daily probability of infection from the sited bundle. 
+where $T$ is the number of days the trip took, and $(1 - e^{-\lambda})$ is the
+daily probability of infection from the infected bundle.
 
-Let us look at these profiles, ensuring we re-standardise both densities to 1 to make them comparable, as they rely on datasets of different sizes:
+Let us look at these profiles, ensuring we re-standardise both densities to 1 to
+make them comparable, as they rely on datasets of different sizes:
 
 ```{r}
 like_trip <- function(lambda, T) {
@@ -198,20 +216,30 @@ lambda_res_mle
 ```
 The resulting probabilities are quite low, ranging from 
 `r round(100*lambda_res_mle$proba[3], 1)`% chances for a trip of 20 days, to  
-`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. To assess the overall plausibility of these scenari, questions remain: how many such trips where made by people carrying the infection from Marseille at the time? And were such trips indeed possible in the first place, given the containment measures in place?
+`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. 
+
+To assess the overall plausibility of these scenari, questions remain: how many
+such trips where made by people carrying the infection from Marseille at the
+time? And were such trips indeed possible in the first place, given the
+containment measures in place?
 
 
 # The first case after Jean
 
-It is written that Jean showed symptoms on the 23rd November, and died 3 days later on the 26th. The first case in his household died on the 18th December. We can assess how likely this delay is by looking at the delay distributions for Bubonic plague, integrating over the possible dates of infection (24th, 25th, 26th November), and convolving the incubation period, and the survival period.
+Jean Quintin showed symptoms on the 23rd November, and died 3 days later on the
+26th. The first case in his household died on the 18th December. We can assess
+how likely this delay is by looking at the delay distributions for Bubonic
+plague, integrating over the possible dates of infection (24th, 25th, 26th
+November), and convolving the incubation period, and the duration of the
+symptomatic period.
 
 ```{r}
 ## calculate possible delays from infection to death
 child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
-## convolve using 1e5 draws from distributions
-sim_delay_inf_death <- incub$r(1e5) + infec$r(1e5)
+## convolve using 1e6 draws from distributions
+sim_delay_inf_death <- incub$r(1e6) + infec$r(1e6)
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
@@ -231,7 +259,7 @@ qplot(sim_delay_inf_death) +
 
 ```
 
-It is very unlikely that the first secondary case was directly sited by Jean Quintin. There remains the possibility that sited surfaces (clothes, bedsheets) were sited by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
+It is very unlikely that the first secondary case was directly infected by Jean Quintin. There remains the possibility that infected surfaces (clothes, bedsheets) were infected by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
 
 ```{r}
 
@@ -254,7 +282,7 @@ mean(child_delay_pval_alt)
 It seems we can rule out the hypothesis of a direct transmission of bubonic plague. Possible aternatives are:
 
 - it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
-- the kid was __not__ sited by his dad, but from a zoonotic source
+- the kid was __not__ infected by his dad, but from a zoonotic source
 
 
 
@@ -313,17 +341,15 @@ A branching process will likely be best at capturing small fluctuations in case 
 - $t = 1, ..., T$: time index
 - $d_i$: date of death of case $i$ (data)
 - $O_i$: date of symptom onset of case $i$ (augmented data)
-- $I_i$: date of infection of case $i$ *(augmented data)
+- $I_i$: date of infection of case $i$ (augmented data)
 - $Y_t$: incidence of new infections at time $t$ (augmented data, derived from $I_i$)
 
 #### Distributions
 
-- $\mathcal{F}$: incubation period distribution (so we have $(O_i - I_i) \sim \mathcal{F}(.)$)
-- $\mathcal{G}$: infectious period distribution (so we have$(D_i - O_i) \sim \mathcal{G}(.)$)
-- $\mathcal{H}$: generation time distribution, obtained from the convolution
+- $\mathcal{F}$: probability mass function (pmf) of the infectious/symptomatic period distribution
+- $\mathcal{G}$: pmf of the incubation period distribution
+- $\mathcal{H}$: pmf of the generation time distribution, obtained from the convolution
 $\mathcal{F} \ast \mathcal{G} = \mathcal{H}$
-
-Both $\mathcal{F}$ and $\mathcal{G}$ are drawn from the literature.
 
 #### Parameters
 
@@ -333,7 +359,8 @@ Both $\mathcal{F}$ and $\mathcal{G}$ are drawn from the literature.
 
 ### The model
 
-We use a Bayesian framework to describe the distribution of parameters ($\theta$), data ($x$), augmented data ($X$), where the posterior distribution is defined as:
+We use a classical Bayesian framework where the posterior distribution is
+defined for parameters $\theta$ and data ($x$) as:
 
 \begin{equation}
 p(\theta | x) \propto p(x | \theta) p(\theta)
@@ -355,13 +382,13 @@ p(I | \lambda_z, R) & = & p(Y | \lambda_z, R) \\
 & = & \prod_{t} p(Y_t | Y_1, ..., Y_{t-1}, \lambda_z, R)
 \end{eqnarray}
 
-where the incidence $Y_t$ is governed by:
+The incidence $Y_t$ is governed by:
 
 \begin{equation}
 Y_t \sim \mathcal{P}(\lambda_t)
 \end{equation}
 
-where $\mathcal{P}(.)$ is the probability mass function of a Poisson distribution, and with:
+where $\mathcal{P}(.)$ is the Poisson distribution, and with:
 
 \begin{equation}
 \lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R Y_s \mathcal{H}(t - s)
@@ -379,16 +406,24 @@ p(\theta) = p(\lambda_z, R) = p(\lambda_z) p(R)
 We can sample from the posterior distribution using the Metropolis algorithm with augmented data with the following process:
 
 1. draw augmented data $O$ using $d_i - O_i \sim \mathcal{F}$
+
 2. draw augmented data $I$ using $O_i - I_i \sim \mathcal{G}$
-3. propose (using symmetric proposal distributions) new values for $\theta^*$ and accept/reject these values with probability: $max(1, \frac{p(\theta^*|x)}{p(\theta|x)})$, where $\theta$ represents the previous parameter state; in practice, separate movements are used for $\lambda_z$ and $R$
-3. go back to 1 until desired number of iterations reached
+
+3. propose (using symmetric proposal distributions) new values for $\theta^*$
+   and accept/reject these values with probability: $max(1, \frac{p(\theta^*|x)}{p(\theta|x)})$,
+   where $\theta$ represents the previous parameter state; in practice, separate
+   movements are used for $\lambda_z$ and $R$, using Normal proposal distributions
+   with standard deviations manually tailored to reach about 30-40% acceptance
+   rates
+
+4. go back to 1 until desired number of iterations reached
 
 
 ## Distributions
 
 ### Generation time
 
-The generation time distribution $\mathcal{H}$ can be calculated by convolving the incubation time $\mathcal{F}$ and the infectious period distribution $\mathcal{G}$.
+The generation time distribution $\mathcal{H}$ can be calculated by convolving the infectious period $\mathcal{F}$ and the  incubation time distribution $\mathcal{G}$.
 
 ```{r}
 ## PMF for delays of 0, 1, ...
@@ -436,7 +471,8 @@ gt_dat %>%
 
 ### Priors
 
-We use a prior for $R$ derived from [@Dean2019-ic] as a lognormal distribution with mean 1.6 and standard deviation 1.3:
+We use a prior for $R$ derived from [@Dean2019-ic] as a lognormal distribution
+with mean 1.6 and standard deviation 1.3:
 
 ```{r}
 prior_R <- function(x, log = FALSE) dlnorm(x, log(1.6), log(1.3), log = log)
@@ -457,7 +493,8 @@ ggplot(prior_R_dat, aes(x = x, y = d)) +
 
 ```
 
-Rates of zoonotic introductions are usually harder to estimate, so we use fairly uninformative priors for $\lambda_z$:
+Rates of zoonotic introductions are usually harder to estimate, so we use a
+flat, uninformative priors for $\lambda_z$, uniformly distributed from 0 to 10:
 
 ```{r}
 prior_zoo <- function(x, log = FALSE) dunif(x, 0, 10, log = log)
@@ -698,7 +735,7 @@ estimate_params <- function(date_death = x$date_of_death,
   
 ```
 
-We run the chains for a few iterations:
+We run the chains for a few iterations to check all runs smoothly:
 
 ```{r}
 
@@ -708,23 +745,34 @@ tail(res)
 
 ```
 
-We can try to run several chains in parallel:
+
+## Resuts on all data
+
+Parameters are estimated for all data, using 8 separate chains run in parallel
+(works only on linux), with a burn-in of 100 iterations. For simplicity, chains
+have been saved in a separate RDS file.
 
 ```{r}
 
-# library(future.apply)
-# plan(multisession, workers = 8)
-# res <- future_lapply(1:8, function(i) estimate_params(n_iter = 100))
+## library(parallel)
+## res <- mclapply(1:12, function(i) 
+##   cbind.data.frame(estimate_params(n_iter = 1000), chain = i),
+##   mc.cores = 12
+##   )
+## saveRDS(res, file = "res_1000iter_12chains_all_data.rds")
 
-#res <- lapply(1:8, function(i) 
-#  cbind.data.frame(estimate_params(n_iter = 100), chain = i)
-#  )
+res <- readRDS("res_1000iter_12chains_all_data.rds")
 
-res <- readRDS("res_1000iter_8chains_04-10-2024.rds")
+## Some diagnostics
+library(coda)
+lapply(res, function(e) effectiveSize(mcmc(e))) %>%
+  bind_rows()
 
-#plan(sequential)
 
-chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]]))
+## Putting chains together and thining
+## Given the reported ESS a thining of 1/10 seems reasonable
+to_keep <- seq(from = 1, to = 1000, by = 10)
+chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]][to_keep, ]))
 names(chains) <- gsub("mcmc.", "", names(chains))
 chains$chain <- factor(chains$chain)
 
@@ -753,7 +801,8 @@ chains %>%
   labs(
     x = "Effective reproduction number (R)",
     y = "Density",
-    title = "Posterior distribution of R")
+    title = "Posterior distribution of R",
+    subtitle = "(dashed lines represent priors)")
 
 
 chains %>% 
@@ -764,9 +813,10 @@ chains %>%
   geom_line(data = prior_zoo_dat, aes(x = x, y = d), linetype = 2) +
   theme_bw() +
   labs(
-    title = "Posterior distribution of lambda_z", 
     x = "Daily rate of zoonotic introductions",
-    y = "Density") +
+    y = "Density",
+    title = "Posterior distribution of lambda_z", 
+    subtitle = "(dashed lines represent priors)") +
   xlim(0, 0.5)
 
 ```
@@ -801,5 +851,31 @@ chains %>%
 
 ```
 
+Results suggest that:
+
+- the data is informative on $R$ and $\lambda_z$, with posterior distributions well different from the priors
+- $R$ values were most likely below 1, with a mean of `r round(chains_smry[1, 1], 2)` (95% CrI: `r round(chains_smry[1, 3], 2)` - `r round(chains_smry[1, 4], 2)`)
+- zoonotic introductions played a substantial role in transmission, with a mean rate of introduction of `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
+
+
+
+# Conclusions
+
+The statistical analysis of historical data suggests the established scenario of
+how the Plague epidemic in Gévaudan started may not be accurate. In short:
+
+- It is rather unlikely that an individual would have travel with an infected
+  wood bundle without getting infected the entire trip, to then infect a new
+  person overnight.
+  
+- The delays between Jean Quintin's infection and his son's death are not
+  compatible with direct transmission.
+  
+- Epidemic modelling suggests that person-to-person transmission was
+  insufficient to sustain the epidemic, and that zoonotic transmission, while
+  low, indeed played a role in the epidemic.
+
+
+\newpage
 
 # References
