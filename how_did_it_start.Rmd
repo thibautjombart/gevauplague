@@ -771,8 +771,35 @@ chains %>%
 
 ```
 
+We can report the mean, median and 95% CrI for each parameter:
 
+```{r }
 
+chains_smry <- chains %>% 
+  filter(step > 100) %>%
+  select(R, zoo) %>% 
+  lapply(function(x) data.frame(
+    mean = mean(x),
+    median = median(x),
+    CrI_low = quantile(x, 0.025),
+    CrI_up = quantile(x, 0.975))
+    ) %>%
+  bind_rows()
+
+rownames(chains_smry) <- c("R", "Zoo")
+chains_smry
+
+```
+
+We can also check acceptance rates:
+```{r }
+
+chains %>% 
+  filter(step > 100) %>%
+  select(accept_R, accept_zoo) %>%
+  summarise_all(mean)
+
+```
 
 
 # References
