@@ -793,14 +793,21 @@ have been saved in a separate RDS file.
 
 ```{r}
 
+n_iter <- 2000
+
 ## library(parallel)
 ## res <- mclapply(1:12, function(i) 
-##   cbind.data.frame(estimate_params(n_iter = 1000), chain = i),
+##   cbind.data.frame(
+##     estimate_params(
+##       x_cor$date_of_death,
+##       pop_size = 111,
+##       n_iter = n_iter),
+##     chain = i),
 ##   mc.cores = 12
 ##   )
-## saveRDS(res, file = "res_1000iter_12chains_all_data.rds")
+## saveRDS(res, file = "res_2000iter_12chains_correjac.rds")
 
-res <- readRDS("res_1000iter_12chains_all_data.rds")
+res <- readRDS("res_2000iter_12chains_correjac.rds")
 
 ## Some diagnostics
 library(coda)
@@ -810,7 +817,7 @@ lapply(res, function(e) effectiveSize(mcmc(e))) %>%
 
 ## Putting chains together and thining
 ## Given the reported ESS a thining of 1/10 seems reasonable
-to_keep <- seq(from = 1, to = 1000, by = 10)
+to_keep <- seq(from = 1, to = n_iter, by = 10)
 chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]][to_keep, ]))
 names(chains) <- gsub("mcmc.", "", names(chains))
 chains$chain <- factor(chains$chain)
@@ -890,11 +897,21 @@ chains %>%
 
 ```
 
+We finally check the proportion of $R_0$ above 1:
+```{r }
+
+p_R_above_1 <- chains %>% 
+  filter(step > 100) %>%
+  summarise(mean(R > 1))
+p_R_above_1
+
+```
+
 Results suggest that:
 
-- the data is informative on $R$ and $\lambda_z$, with posterior distributions well different from the priors
-- $R$ values were most likely below 1, with a mean of `r round(chains_smry[1, 1], 2)` (95% CrI: `r round(chains_smry[1, 3], 2)` - `r round(chains_smry[1, 4], 2)`)
-- zoonotic introductions played a substantial role in transmission, with a mean rate of introduction of `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
+- the data is informative on $R_0$ and $\lambda_z$, with posterior distributions well different from the priors
+- the average value of estimated $R_0$ is `r round(chains_smry[1, 1], 2)` (95% CrI: `r round(chains_smry[1, 3], 2)` - `r round(chains_smry[1, 4], 2)`), with only `r round(p_R_above_1, 2)`% of posterior values above 1, suggesting that person-to-person transmission only is unlikely to have sustained the epidemic
+- the estimated rate of zoonotic introductions confirms that re-introduction played a substantial role in transmission, with a mean rate of introduction of `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
 
 
 
