@@ -1,6 +1,6 @@
 ---
 title: "Revisiting the early stage of the 1720 plague epidemic in Gévaudan"
-author: "Thibaut Jombart, Henry Mouysset"
+author: "Thibaut Jombart, Anne Cori, Henry Mouysset"
 date: "8 October 2024"
 output:
   pdf_document: default
@@ -423,20 +423,37 @@ We can sample from the posterior distribution using the Metropolis algorithm wit
 
 ### Generation time
 
-The generation time distribution $\mathcal{H}$ can be calculated by convolving the infectious period $\mathcal{F}$ and the  incubation time distribution $\mathcal{G}$.
+The generation time distribution $\mathcal{H}$ is estimated using the following procedure: 
 
+1. Sample a large number $n$ of incubation periods $X$
+2. Sample a large number $n$ of infectious period durations $Y$
+3. Sample $n$ delays from onset to infections $Z$, uniformly distributed between 0 and $Y$
+4. Derive the empirical distribution of $\mathcal{H}$ from $X + Z$
+
+Here the estimates are based on 10 million draws:
 ```{r}
+## RNG for delay from onset to infection
+onset_to_inf_r <- function(n) {
+  floor(runif(n, 0, infec$r(n) + 1))
+}
+
 ## PMF for delays of 0, 1, ...
-gentime_pmf <- convolve(incub$d(0:100), rev(infec$d(0:100)), type = "open")
-gentime_pmf[1] <- 0
+gentime_dat <- incub$r(1e7) + onset_to_inf_r(1e7)
+range(gentime_dat)
+gentime_freq <- sapply(
+  seq(0, max(gentime_dat), by = 1L), 
+  function(i) sum(i == gentime_dat)
+)
+gentime_pmf <- gentime_freq
 gentime_pmf <- gentime_pmf / sum(gentime_pmf) # superfluous
 
 ## emulate density function
 gentime_d <- function(x, log = FALSE) {
   ## make sure we don't get out of bounds
   x <- as.integer(x)
+  max_x <- max(gentime_dat)
   x[x < 0] <- 0
-  x[x > 100] <- 100
+  x[x > max_x] <- 0
   out <- gentime_pmf[x+1]
   if (log) {
     out <- log(out)
@@ -446,7 +463,7 @@ gentime_d <- function(x, log = FALSE) {
 
 ## emulate rng function
 gentime_r <- function(n) {
-  sample(0:100, size = n, replace = TRUE, prob = gentime_d(0:100))
+  sample(gentime_dat, size = n, replace = TRUE)
 }
 
 gentime <- list(d = gentime_d, r = gentime_r)
