@@ -1,6 +1,6 @@
 ---
 title: "Revisiting the early stage of the 1720 plague epidemic in Gévaudan"
-author: "Thibaut Jombart, Henry Mouysset"
+author: "Thibaut Jombart, Anne Cori, Henry Mouysset"
 date: "8 October 2024"
 output:
   pdf_document: default
