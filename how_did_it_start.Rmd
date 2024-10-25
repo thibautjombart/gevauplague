@@ -304,9 +304,10 @@ We build a simple epidemic curve for Corréjac, and for both locations together:
 
 ```{r}
 library(incidence2)
+x_cor <- x %>% 
+  filter(location == "Corréjac")
 
-x %>% 
-  filter(location == "Corréjac") %>% 
+x_cor %>% 
   incidence("date_of_death", groups = "family", interval = 7) %>% 
   plot(fill = "family", colour_palette = muted, angle = 45, border = "white") + 
   labs(
@@ -343,6 +344,8 @@ A branching process will likely be best at capturing small fluctuations in case 
 - $O_i$: date of symptom onset of case $i$ (augmented data)
 - $I_i$: date of infection of case $i$ (augmented data)
 - $Y_t$: incidence of new infections at time $t$ (augmented data, derived from $I_i$)
+- $S_t$: the number of susceptible (_i.e._ non-infected) individuals at time $t$
+- $N$: the total number of individuals (infected and non-infected) in the area considered
 
 #### Distributions
 
@@ -354,7 +357,7 @@ $\mathcal{F} \ast \mathcal{G} = \mathcal{H}$
 #### Parameters
 
 - $\lambda_z$: the rate of zoonotic introduction, assumed constant over time
-- $R$: the effective reproduction number, assumed constant over time
+- $R_0$: the basic reproduction number
 
 
 ### The model
@@ -370,16 +373,16 @@ where $p(x | \theta)$ is the likelihood function and $p(\theta)$ the prior distr
 
 The likelihood can be written as:
 \begin{eqnarray}
-p(x | \theta) & = & p(d, O, I | \lambda_z, R) \\
-& = & p(d | O) p(O | I) p(I | \lambda_z, R) \\
-& = & \left( \prod_i p(d_i | O_i) \prod_i p(O_i | I_i) \right) p(I | \lambda_z, R)\\
-& = & \left( \prod_i \mathcal{F}(d_i - O_i) \mathcal{G}(O_i - I_i) \right) p(I | \lambda_z, R)
+p(x | \theta) & = & p(d, O, I | \lambda_z, R_0) \\
+& = & p(d | O) p(O | I) p(I | \lambda_z, R_0) \\
+& = & \left( \prod_i p(d_i | O_i) \prod_i p(O_i | I_i) \right) p(I | \lambda_z, R_0)\\
+& = & \left( \prod_i \mathcal{F}(d_i - O_i) \mathcal{G}(O_i - I_i) \right) p(I | \lambda_z, R_0)
 \end{eqnarray}
 
-The calculation of $p(I|\lambda_z, R)$ is defined by the Hawkes process for the incidence $Y$:
+The calculation of $p(I|\lambda_z, R_0)$ is defined by the Hawkes process for the incidence $Y$:
 \begin{eqnarray}
-p(I | \lambda_z, R) & = & p(Y | \lambda_z, R) \\
-& = & \prod_{t} p(Y_t | Y_1, ..., Y_{t-1}, \lambda_z, R)
+p(I | \lambda_z, R_0) & = & p(Y | \lambda_z, R_0) \\
+& = & \prod_{t} p(Y_t | Y_1, ..., Y_{t-1}, \lambda_z, R_0)
 \end{eqnarray}
 
 The incidence $Y_t$ is governed by:
@@ -391,13 +394,13 @@ Y_t \sim \mathcal{P}(\lambda_t)
 where $\mathcal{P}(.)$ is the Poisson distribution, and with:
 
 \begin{equation}
-\lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R Y_s \mathcal{H}(t - s)
+\lambda_t = \lambda_z + \sum_{s = 1}^{t-1} R_0 \frac{S_t}{N} Y_s \mathcal{H}(t - s)
 \end{equation}
 
 
-Finally, we assume independent priors for $\lambda_z$ and $R$ such that:
+Finally, we assume independent priors for $\lambda_z$ and $R_0$ such that:
 \begin{equation}
-p(\theta) = p(\lambda_z, R) = p(\lambda_z) p(R)
+p(\theta) = p(\lambda_z, R_0) = p(\lambda_z) p(R_0)
 \end{equation}
 
 
@@ -412,7 +415,7 @@ We can sample from the posterior distribution using the Metropolis algorithm wit
 3. propose (using symmetric proposal distributions) new values for $\theta^*$
    and accept/reject these values with probability: $max(1, \frac{p(\theta^*|x)}{p(\theta|x)})$,
    where $\theta$ represents the previous parameter state; in practice, separate
-   movements are used for $\lambda_z$ and $R$, using Normal proposal distributions
+   movements are used for $\lambda_z$ and $R_0$, using Normal proposal distributions
    with standard deviations manually tailored to reach about 30-40% acceptance
    rates
 
@@ -502,9 +505,9 @@ ggplot(prior_R_dat, aes(x = x, y = d)) +
   geom_line() +
   theme_bw() +
   labs(
-    x = "R",
+    x = "R0",
     y = "Density",
-    title = "Prior for R",
+    title = "Prior for R0",
     subtitle = "Lognormal(1.6, 1.3)"
   )
 
@@ -538,7 +541,7 @@ ggplot(prior_zoo_dat, aes(x = x, y = d)) +
 
 ## Implementation
 
-The following code implements the model.
+The following code implements the model. Since Corréjac and La Canourgue had vastly different populations (respectively 111 and 1370 inhabitants), we restrict the analysis of the early stage of the outbreak to Corréjac. Note that for such as small population, accounting for the depletion of susceptibles is a key feature of our model.
 
 ```{r}
 
@@ -546,7 +549,7 @@ The following code implements the model.
 ## This will return a list with all the data needed for likelihood calculation.
 ## Note that dates of deaths are converted to integers, with 0 the earliest death.
 
-make_aug_data <- function(date_death = x$date_of_death,
+make_aug_data <- function(date_death,
                           r_incub = incub$r, 
                           r_infec = infec$r 
                           ) {
@@ -584,7 +587,8 @@ compute_loglike <- function(data,
                             params, 
                             d_incub = incub$d, 
                             d_infec = infec$d, 
-                            d_gentime = gentime$d) {
+                            d_gentime = gentime$d,
+                            pop_size = 111) {
  
   ### There are 3 components to the likelihood:^
   ### 
@@ -607,10 +611,18 @@ compute_loglike <- function(data,
     seq(first_day, last_day, by = 1), 
     function(i) sum(data$infection == i)
   )
+  
+  #### calculate the corresponding number of susceptibles over time
+  total_inf <- cumsum(incid)
+  if (any(total_inf > pop_size)) stop("total infected > pop_size")
+  total_sus <- pop_size - total_inf
+  p_sus <- total_sus / pop_size
  
   #### get relative FOIs - check that w indeed start at 1 in EpiEstim
   lambdas_p2p <- EpiEstim::overall_infectivity(incid, d_gentime(0:100))
-  lambdas <- params$zoo + (lambdas_p2p * params$R)
+  lambdas <- params$zoo + (lambdas_p2p * params$R * p_sus)
+  
+  #### we ommit the first entry as it is by definition NA
   p_3 <- sum(na.omit(dpois(incid, lambdas, log = TRUE)))
   
   p_1 + p_2 + p_3
@@ -631,9 +643,10 @@ compute_post <- function(data,
                          d_infec = infec$d, 
                          d_gentime = gentime$d,
                          d_zoo = prior_zoo, 
-                         d_R = prior_R
+                         d_R = prior_R, 
+                         pop_size = 111
                          ) {
-  compute_loglike(data, params, d_incub, d_infec, d_gentime) + 
+  compute_loglike(data, params, d_incub, d_infec, d_gentime, pop_size) + 
     compute_priors(params, d_zoo, d_R)
 }
 
@@ -647,7 +660,7 @@ compute_post <- function(data,
 ## @param ini_zoo the initial value of the daily rate of zoonotic introduction
 ## @param ini_R the initial value of the effective reproduction number
 
-estimate_params <- function(date_death = x$date_of_death,
+estimate_params <- function(date_death,
                             n_iter = 1e3,
                             d_incub = incub$d, 
                             d_infec = infec$d, 
@@ -659,7 +672,8 @@ estimate_params <- function(date_death = x$date_of_death,
                             sd_zoo = 0.1, 
                             sd_R = 0.4, 
                             ini_zoo = runif(1, 0, 1), 
-                            ini_R = runif(1, 0, 3)) {
+                            ini_R = runif(1, 0, 3),
+                            pop_size = 111) {
   
   ### Initialize MCMC
   params <- list(zoo = ini_zoo, R = ini_R)
@@ -670,7 +684,8 @@ estimate_params <- function(date_death = x$date_of_death,
                            d_infec, 
                            d_gentime,
                            d_zoo, 
-                           d_R)
+                           d_R, 
+                           pop_size)
   new_params <- current_params <- params
   
   ### Build output structure
@@ -693,7 +708,8 @@ estimate_params <- function(date_death = x$date_of_death,
                                  d_infec, 
                                  d_gentime,
                                  d_zoo, 
-                                 d_R)
+                                 d_R, 
+                                 pop_size)
     
     #### propose new zoo
     new_params$zoo <- current_params$zoo + rnorm(1, sd = sd_zoo)
@@ -705,7 +721,8 @@ estimate_params <- function(date_death = x$date_of_death,
                              d_infec, 
                              d_gentime,
                              d_zoo, 
-                             d_R)
+                             d_R, 
+                             pop_size)
     p_accept_zoo <- exp(new_post - current_post)
     if (runif(1) <= p_accept_zoo) { # accept move
       current_params$zoo <- new_params$zoo
@@ -725,7 +742,8 @@ estimate_params <- function(date_death = x$date_of_death,
                              d_infec, 
                              d_gentime,
                              d_zoo, 
-                             d_R)
+                             d_R, 
+                             pop_size)
     p_accept_R <- exp(new_post - current_post)
     if (runif(1) <= p_accept_R) { # accept move
       current_params$R <- new_params$R
@@ -756,7 +774,11 @@ We run the chains for a few iterations to check all runs smoothly:
 
 ```{r}
 
-system.time(res <- estimate_params(n_iter = 10))
+system.time(res <- estimate_params(
+  x_cor$date_of_death, 
+  pop_size = 111, 
+  n_iter = 30)
+)
 head(res)
 tail(res)
 
