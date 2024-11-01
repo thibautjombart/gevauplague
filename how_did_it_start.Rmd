@@ -1,7 +1,7 @@
 ---
 title: "Revisiting the early stage of the 1720 plague epidemic in Gévaudan"
 author: "Thibaut Jombart, Anne Cori, Henry Mouysset"
-date: "8 October 2024"
+date: "`r Sys.Date()`"
 output:
   pdf_document: default
   html_document: default
