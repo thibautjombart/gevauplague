@@ -499,7 +499,109 @@ summary(gentime_dat_a)
 
 ```
 
+Let's now try the alternative approach 'B':
+```{r}
+## Continuous version of the incubation and infectious period distributions
+incub_cont_r <- function(n) rlnorm(n, 
+                                   meanlog = log(3.5), 
+                                   sdlog = log(1.5)
+                                   )
 
+infec_cont_r <- function(n) rlnorm(n, 
+                                   meanlog = log(3), 
+                                   sdlog = log(1.4)
+                                   )
+
+## RNG for delay from onset to infection
+onset_to_inf_r_b <- function(n) {
+  runif(n, 0, infec_cont_r(n))
+}
+
+## PMF for delays of 0, 1, ...
+gentime_dat_b <- floor(incub_cont_r(1e7) + onset_to_inf_r_b(1e7))
+range(gentime_dat_b)
+gentime_freq_b <- sapply(
+  seq(0, max(gentime_dat_b), by = 1L), 
+  function(i) sum(i == gentime_dat_b)
+)
+gentime_pmf_b <- gentime_freq_b
+gentime_pmf_b[1] <- 0 # force p(0) = 0
+gentime_pmf_b <- gentime_pmf_b / sum(gentime_pmf_b) # superfluous
+
+## emulate density function
+gentime_d_b <- function(x, log = FALSE) {
+  ## make sure we don't get out of bounds
+  x <- as.integer(x)
+  max_x <- max(gentime_dat_b)
+  x[x < 0] <- 0
+  x[x > max_x] <- 0
+  out <- gentime_pmf_b[x+1]
+  if (log) {
+    out <- log(out)
+  }
+  out
+}
+
+## emulate rng function
+gentime_r_b <- function(n) {
+  sample(gentime_dat_b, size = n, replace = TRUE)
+}
+
+gentime_b <- list(d = gentime_d_b, r = gentime_r_b)
+
+gt_dat_b <- tibble(
+  Day = 0:25,
+  p = gentime_b$d(0:25)
+  )
+
+gt_dat_b %>% 
+  ggplot(aes(x = Day, y = p)) +
+  geom_col(fill = 4) +
+  theme_bw() +
+  labs(
+    x = "Time from primary to secondary infection", 
+    y = "Probability", 
+    title = "Generation time distribution - bubonic plague",
+    subtitle = "Drawing from continuous distributions"
+    )
+
+## Summary stats of the GT - approach B
+summary(gentime_dat_b)
+
+```
+
+Comparison of the two approaches:
+```{r}
+gentime_dat_comp <- bind_rows(
+    cbind(gt_dat_a, approach = "A"), 
+    cbind(gt_dat_b, approach = "B")
+  )
+gentime_dat_comp %>% 
+  ggplot(aes(x = Day, y = p, color = approach)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(A = 2, B = 4)) + 
+  theme_bw() +
+  labs(
+    x = "Time from primary to secondary infection", 
+    y = "Probability", 
+    title = "Generation time distribution - bubonic plague",
+    subtitle = "Comparing approaches"
+    )
+
+## stats of the two distributions
+summary(gentime_dat_a)
+summary(gentime_dat_b)
+
+## differences in infectious periods discretized/continous
+summary(infec$r(1e6)) # discrete
+summary(infec_cont_r(1e6)) # continuous
+
+```
+
+We choose the 2nd approach:
+```{r}
+gentime <- gentime_b
+```
 
 
 ### Priors
