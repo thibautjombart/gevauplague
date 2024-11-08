@@ -433,31 +433,38 @@ The generation time distribution $\mathcal{H}$ is estimated using the following 
 3. Sample $n$ delays from onset to infections $Z$, uniformly distributed between 0 and $Y$
 4. Derive the empirical distribution of $\mathcal{H}$ from $X + Z$
 
-Here the estimates are based on 10 million draws:
+We note that this can be done using two alternative approaches:
+
+a. sampling from the discretized distributions for steps 1-3
+b. sampling from continuous distributions for steps 1-3, then discretizing
+
+We will try both approaches out of curiosity (planting the seed of a new MRes project?) but will retain option __b__ as the correct one.
+
+We start with approach A, basing estimates on 10 million draws:
 ```{r}
 ## RNG for delay from onset to infection
-onset_to_inf_r <- function(n) {
+onset_to_inf_r_a <- function(n) {
   floor(runif(n, 0, infec$r(n) + 1))
 }
 
 ## PMF for delays of 0, 1, ...
-gentime_dat <- incub$r(1e7) + onset_to_inf_r(1e7)
-range(gentime_dat)
-gentime_freq <- sapply(
-  seq(0, max(gentime_dat), by = 1L), 
-  function(i) sum(i == gentime_dat)
+gentime_dat_a <- incub$r(1e7) + onset_to_inf_r_a(1e7)
+range(gentime_dat_a)
+gentime_freq_a <- sapply(
+  seq(0, max(gentime_dat_a), by = 1L), 
+  function(i) sum(i == gentime_dat_a)
 )
-gentime_pmf <- gentime_freq
-gentime_pmf <- gentime_pmf / sum(gentime_pmf) # superfluous
+gentime_pmf_a <- gentime_freq_a
+gentime_pmf_a <- gentime_pmf_a / sum(gentime_pmf_a) # superfluous
 
 ## emulate density function
-gentime_d <- function(x, log = FALSE) {
+gentime_d_a <- function(x, log = FALSE) {
   ## make sure we don't get out of bounds
   x <- as.integer(x)
-  max_x <- max(gentime_dat)
+  max_x <- max(gentime_dat_a)
   x[x < 0] <- 0
   x[x > max_x] <- 0
-  out <- gentime_pmf[x+1]
+  out <- gentime_pmf_a[x+1]
   if (log) {
     out <- log(out)
   }
@@ -465,27 +472,135 @@ gentime_d <- function(x, log = FALSE) {
 }
 
 ## emulate rng function
-gentime_r <- function(n) {
-  sample(gentime_dat, size = n, replace = TRUE)
+gentime_r_a <- function(n) {
+  sample(gentime_dat_a, size = n, replace = TRUE)
 }
 
-gentime <- list(d = gentime_d, r = gentime_r)
+gentime_a <- list(d = gentime_d_a, r = gentime_r_a)
 
-gt_dat <- tibble(
+gt_dat_a <- tibble(
   Day = 0:25,
-  p = gentime$d(0:25)
+  p = gentime_a$d(0:25)
   )
 
-gt_dat %>% 
+gt_dat_a %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 2) +
   theme_bw() +
   labs(
     x = "Time from primary to secondary infection", 
     y = "Probability", 
-    title = "Generation time distribution - bubonic plague"
+    title = "Generation time distribution - bubonic plague",
+    subtitle = "Drawing from discretized distributions"
     )
 
+## Summary stats of the GT - approach A
+summary(gentime_dat_a)
+
+```
+
+Let's now try the alternative approach 'B':
+```{r}
+## Continuous version of the incubation and infectious period distributions
+incub_cont_r <- function(n) rlnorm(n, 
+                                   meanlog = log(3.5), 
+                                   sdlog = log(1.5)
+                                   )
+
+infec_cont_r <- function(n) rlnorm(n, 
+                                   meanlog = log(3), 
+                                   sdlog = log(1.4)
+                                   )
+
+## RNG for delay from onset to infection
+onset_to_inf_r_b <- function(n) {
+  runif(n, 0, infec_cont_r(n))
+}
+
+## PMF for delays of 0, 1, ...
+gentime_dat_b <- floor(incub_cont_r(1e7) + onset_to_inf_r_b(1e7))
+range(gentime_dat_b)
+gentime_freq_b <- sapply(
+  seq(0, max(gentime_dat_b), by = 1L), 
+  function(i) sum(i == gentime_dat_b)
+)
+gentime_pmf_b <- gentime_freq_b
+gentime_pmf_b[1] <- 0 # force p(0) = 0
+gentime_pmf_b <- gentime_pmf_b / sum(gentime_pmf_b) # superfluous
+
+## emulate density function
+gentime_d_b <- function(x, log = FALSE) {
+  ## make sure we don't get out of bounds
+  x <- as.integer(x)
+  max_x <- max(gentime_dat_b)
+  x[x < 0] <- 0
+  x[x > max_x] <- 0
+  out <- gentime_pmf_b[x+1]
+  if (log) {
+    out <- log(out)
+  }
+  out
+}
+
+## emulate rng function
+gentime_r_b <- function(n) {
+  sample(gentime_dat_b, size = n, replace = TRUE)
+}
+
+gentime_b <- list(d = gentime_d_b, r = gentime_r_b)
+
+gt_dat_b <- tibble(
+  Day = 0:25,
+  p = gentime_b$d(0:25)
+  )
+
+gt_dat_b %>% 
+  ggplot(aes(x = Day, y = p)) +
+  geom_col(fill = 4) +
+  theme_bw() +
+  labs(
+    x = "Time from primary to secondary infection", 
+    y = "Probability", 
+    title = "Generation time distribution - bubonic plague",
+    subtitle = "Drawing from continuous distributions"
+    )
+
+## Summary stats of the GT - approach B
+summary(gentime_dat_b)
+
+```
+
+Comparison of the two approaches:
+```{r}
+gentime_dat_comp <- bind_rows(
+    cbind(gt_dat_a, approach = "A"), 
+    cbind(gt_dat_b, approach = "B")
+  )
+gentime_dat_comp %>% 
+  ggplot(aes(x = Day, y = p, color = approach)) +
+  geom_line(linewidth = 1) +
+  scale_color_manual(values = c(A = 2, B = 4)) + 
+  theme_bw() +
+  labs(
+    x = "Time from primary to secondary infection", 
+    y = "Probability", 
+    title = "Generation time distribution - bubonic plague",
+    subtitle = "Comparing approaches"
+    )
+
+## stats of the two distributions
+summary(gentime_dat_a)
+summary(gentime_dat_b)
+
+## differences in infectious periods discretized/continous
+summary(infec$r(1e6)) # discrete
+summary(infec_cont_r(1e6)) # continuous
+
+```
+
+We choose the 2nd approach:
+```{r}
+gentime <- gentime_b
 ```
 
 
