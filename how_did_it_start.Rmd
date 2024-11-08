@@ -76,6 +76,9 @@ incub_dat %>%
     title = "Incubation time distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
+## Some stats based upon 1 million draws
+summary(incub$r(1e6))
+
 ```
 
 
@@ -113,15 +116,18 @@ infec_dat %>%
     title = "Infectious period distribution - bubonic plague", 
     subtitle = "(discretized lognormal)")
 
+## Some stats based upon 10 million draws
+summary(infec$r(1e6))
+
 ```
 
 We note that the distribution is well in line with the mean duration of fatal,
-untreated bubonic plague of 3.6 days [@noauthor_1907-bh]:
+untreated bubonic plague of 3.6 days [@noauthor_1907-bh].
 
 ```{r }
 
-## mean of 100 000 values from the distribution:
-mean(infec$r(1e5))
+## mean of 1 000 000 values from the distribution:
+mean(infec$r(1e6))
 
 ```
 
@@ -406,7 +412,8 @@ p(\theta) = p(\lambda_z, R_0) = p(\lambda_z) p(R_0)
 
 ### Estimation process
 
-We can sample from the posterior distribution using the Metropolis algorithm with augmented data with the following process:
+We can sample from the posterior distribution using the Metropolis algorithm
+with augmented data with the following process:
 
 1. draw augmented data $O$ using $d_i - O_i \sim \mathcal{F}$
 
@@ -438,7 +445,8 @@ We note that this can be done using two alternative approaches:
 a. sampling from the discretized distributions for steps 1-3
 b. sampling from continuous distributions for steps 1-3, then discretizing
 
-We will try both approaches out of curiosity (planting the seed of a new MRes project?) but will retain option __b__ as the correct one.
+We will try both approaches out of curiosity (planting the seed of a new MRes
+project?) but will retain option __b__ as the correct one.
 
 We start with approach A, basing estimates on 10 million draws:
 ```{r}
@@ -656,7 +664,11 @@ ggplot(prior_zoo_dat, aes(x = x, y = d)) +
 
 ## Implementation
 
-The following code implements the model. Since Corréjac and La Canourgue had vastly different populations (respectively 111 and 1370 inhabitants), we restrict the analysis of the early stage of the outbreak to Corréjac. Note that for such as small population, accounting for the depletion of susceptibles is a key feature of our model.
+The following code implements the model. Since Corréjac and La Canourgue had
+vastly different populations (respectively 111 and 1370 inhabitants), we
+restrict the analysis of the early stage of the outbreak to Corréjac. Note that
+for such as small population, accounting for the depletion of susceptibles is a
+key feature of our model.
 
 ```{r}
 
@@ -900,27 +912,27 @@ tail(res)
 ```
 
 
-## Resuts on all data
+## Resuts for Corréjac
 
-Parameters are estimated for all data, using 8 separate chains run in parallel
-(works only on linux), with a burn-in of 100 iterations. For simplicity, chains
-have been saved in a separate RDS file.
+Parameters are estimated for all cases from Corréjac, using 12 separate chains
+run in parallel (works only on linux), with a burn-in of 100 iterations. For
+simplicity, chains have been saved in a separate RDS file.
 
 ```{r}
 
 n_iter <- 2000
 
-## library(parallel)
-## res <- mclapply(1:12, function(i) 
-##   cbind.data.frame(
-##     estimate_params(
-##       x_cor$date_of_death,
-##       pop_size = 111,
-##       n_iter = n_iter),
-##     chain = i),
-##   mc.cores = 12
-##   )
-## saveRDS(res, file = "res_2000iter_12chains_correjac.rds")
+library(parallel)
+res <- mclapply(1:12, function(i) 
+  cbind.data.frame(
+    estimate_params(
+      x_cor$date_of_death,
+      pop_size = 111,
+      n_iter = n_iter),
+    chain = i),
+  mc.cores = 12
+  )
+saveRDS(res, file = "res_2000iter_12chains_correjac.rds")
 
 res <- readRDS("res_2000iter_12chains_correjac.rds")
 
@@ -1025,8 +1037,140 @@ p_R_above_1
 Results suggest that:
 
 - the data is informative on $R_0$ and $\lambda_z$, with posterior distributions well different from the priors
+
 - the average value of estimated $R_0$ is `r round(chains_smry[1, 1], 2)` (95% CrI: `r round(chains_smry[1, 3], 2)` - `r round(chains_smry[1, 4], 2)`), with only `r round(p_R_above_1, 2)`% of posterior values above 1, suggesting that person-to-person transmission only is unlikely to have sustained the epidemic
+
 - the estimated rate of zoonotic introductions confirms that re-introduction played a substantial role in transmission, with a mean rate of introduction of `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
+
+
+
+
+## Resuts on all data
+
+As a sensitivity study, we re-run the same analyses but including all cases.
+
+```{r}
+
+n_iter <- 2000
+
+library(parallel)
+res <- mclapply(1:12, function(i) 
+  cbind.data.frame(
+    estimate_params(
+      x$date_of_death,
+      pop_size = 111,
+      n_iter = n_iter),
+    chain = i),
+  mc.cores = 12
+  )
+saveRDS(res, file = "res_2000iter_12chains_all_cases.rds")
+
+# res <- readRDS("res_2000iter_12chains_all_cases.rds")
+
+## Some diagnostics
+lapply(res, function(e) effectiveSize(mcmc(e))) %>%
+  bind_rows()
+
+
+## Putting chains together and thining
+## Given the reported ESS a thining of 1/10 seems reasonable
+to_keep <- seq(from = 1, to = n_iter, by = 10)
+chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]][to_keep, ]))
+names(chains) <- gsub("mcmc.", "", names(chains))
+chains$chain <- factor(chains$chain)
+
+
+## Plots
+ggplot(chains) + 
+  geom_line(aes(x = step, y = post, color = chain)) + 
+  labs(title = "Log-posterior traces")
+
+## Plots
+ggplot(chains) + 
+  geom_line(aes(x = step, y = R, color = chain)) + 
+  labs(title = "Trace of R values")
+
+ggplot(chains) + 
+  geom_line(aes(x = step, y = zoo, color = chain)) + 
+  labs(title = "Trace of lambda_z values")
+
+chains %>% 
+  filter(step > 100) %>% 
+  ggplot(aes(x = R)) + 
+  stat_density(aes(y = after_stat(scaled)), geom = "line") +
+  geom_rug(alpha = .1) +
+  geom_line(data = prior_R_dat, aes(x = x, y = d), linetype = 2) +
+  theme_bw() +
+  labs(
+    x = "Effective reproduction number (R)",
+    y = "Density",
+    title = "Posterior distribution of R",
+    subtitle = "(dashed lines represent priors)")
+
+
+chains %>% 
+  filter(step > 100) %>% 
+  ggplot(aes(x = zoo)) + 
+  stat_density(aes(y = after_stat(scaled)), geom = "line") +
+  geom_rug(alpha = .1) +
+  geom_line(data = prior_zoo_dat, aes(x = x, y = d), linetype = 2) +
+  theme_bw() +
+  labs(
+    x = "Daily rate of zoonotic introductions",
+    y = "Density",
+    title = "Posterior distribution of lambda_z", 
+    subtitle = "(dashed lines represent priors)") +
+  xlim(0, 0.5)
+
+```
+
+We can report the mean, median and 95% CrI for each parameter:
+
+```{r }
+
+chains_smry <- chains %>% 
+  filter(step > 100) %>%
+  select(R, zoo) %>% 
+  lapply(function(x) data.frame(
+    mean = mean(x),
+    median = median(x),
+    CrI_low = quantile(x, 0.025),
+    CrI_up = quantile(x, 0.975))
+    ) %>%
+  bind_rows()
+
+rownames(chains_smry) <- c("R", "Zoo")
+chains_smry
+
+```
+
+We can also check acceptance rates:
+```{r }
+
+chains %>% 
+  filter(step > 100) %>%
+  select(accept_R, accept_zoo) %>%
+  summarise_all(mean)
+
+```
+
+We finally check the proportion of $R_0$ above 1:
+```{r }
+
+p_R_above_1 <- chains %>% 
+  filter(step > 100) %>%
+  summarise(mean(R > 1))
+p_R_above_1
+
+```
+
+Results suggest that:
+
+- the average value of estimated $R_0$ using all cases is `r round(chains_smry[1, 1], 2)` (95% CrI: `r round(chains_smry[1, 3], 2)` - `r round(chains_smry[1, 4], 2)`), with `r round(p_R_above_1, 2)`% of posterior values above 1
+
+- the mean rate of zoonotic introductions estimated on all data was `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
+
+
 
 
 
