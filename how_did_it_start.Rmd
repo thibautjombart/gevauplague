@@ -13,6 +13,9 @@ csl: plos-biology.csl
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(
+  dev = c("pdf", "png"),
+  fig.path = "figures/",
+  dpi = 300,
   echo = TRUE, 
   include = TRUE,
   fig.width = 7, 
@@ -156,8 +159,8 @@ the area, and would have demanded some extra time to be avoided.
 We will explore 3 scenarios, with varying durations for the trip, which we posit
 was at least about 300 km:
 
-- 7 days (very optimistic, > 40 km per day)
-- 12 days (~ 25km per day)
+- 10 days (optimistic, 30 km per day)
+- 15 days (~ 20km per day)
 - 20 days (~ 15 km per day)
 
 We do not know what the daily rate of infection $\lambda$ from the wool bundle
@@ -173,7 +176,7 @@ daily probability of infection from the infected bundle.
 Let us look at these profiles, ensuring we re-standardise both densities to 1 to
 make them comparable, as they rely on datasets of different sizes:
 
-```{r}
+```{r fig.cap = "Estimation of the rate of daily infection from the wool bundler"}
 like_trip <- function(lambda, T) {
   p <- 1 - exp(-lambda)
   (1 - p)^T * p
@@ -181,8 +184,8 @@ like_trip <- function(lambda, T) {
 
 lambda_res <- tibble(
   val = seq(0, 1.2, length = 1000),
-  "7 days" = like_trip(val, 7), 
-  "12 days" = like_trip(val, 12), 
+  "10 days" = like_trip(val, 10), 
+  "15 days" = like_trip(val, 15), 
   "20 days" = like_trip(val, 20)
 ) %>% 
   mutate_at(
@@ -192,11 +195,17 @@ lambda_res <- tibble(
 
 lambda_res_long <-  lambda_res %>% 
   pivot_longer(-1, names_to = "scenario", values_to = "likelihood") %>% 
-  mutate(scenario = factor(scenario, levels = paste(c(7, 12, 20), "days")))
+  mutate(scenario = factor(scenario, levels = paste(c(10, 15, 20), "days")))
   
 lambda_res_mle <- lambda_res_long %>% 
   group_by(scenario) %>% 
   summarise(MLE = val[which.max(likelihood)])
+
+lambda_res_mle
+
+```
+
+```{r figure1}
 
 lambda_res_long %>% 
   ggplot(aes(x = val, y = likelihood, color = scenario)) +
@@ -204,15 +213,13 @@ lambda_res_long %>%
   geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
   theme_bw() + 
   labs(
-    x = "Daily rate of infection (\U03BB)",
-    y = "Likelihood",
-    title = "Estimation of the probability of daily infection"
+    x = "Daily rate of infection",
+    y = "Likelihood"
   ) +
   scale_x_continuous(n.breaks = 20)
 
-lambda_res_mle
-
 ```
+
 
 We find some more likely values than others, and this leans towards fairly low
 rates ranging from `r round(min(lambda_res_mle$MLE), 4)` to 
@@ -232,7 +239,7 @@ lambda_res_mle
 ```
 The resulting probabilities are quite low, ranging from 
 `r round(100*lambda_res_mle$proba[3], 1)`% chances for a trip of 20 days, to  
-`r round(100*lambda_res_mle$proba[1], 1)`% for 7 days. 
+`r round(100*lambda_res_mle$proba[1], 1)`% for 10 days. 
 
 To assess the overall plausibility of these scenari, questions remain: how many
 such trips where made by people carrying the infection from Marseille at the
@@ -314,6 +321,11 @@ x <- rio::import(file_path, sheet = "linelist") %>%
   tibble() %>% 
   mutate(date_of_death = as.Date(date_of_death, format = "%d/%m/%Y"))
 x
+
+dim(x)
+table(x$location)
+range(x$date_of_death)
+
 ```
 
 We build a simple epidemic curve for Corréjac, and for both locations together:
@@ -322,6 +334,7 @@ We build a simple epidemic curve for Corréjac, and for both locations together:
 library(incidence2)
 x_cor <- x %>% 
   filter(location == "Corréjac")
+dim(x_cor)
 
 x_cor %>% 
   incidence("date_of_death", groups = "family", interval = 7) %>% 
