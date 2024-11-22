@@ -78,6 +78,9 @@ incub_dat <- tibble(
   Day = 0:15,
   p = incub$d(0:15)
   )
+```
+
+```{r figure_S1, fig.cap = "Incubation time distribution of bubonic plague"}
 
 incub_dat %>% 
   ggplot(aes(x = Day, y = p)) +
@@ -85,14 +88,14 @@ incub_dat %>%
   theme_bw() +
   labs(
     x = "Time from infection to symptom onset (days)", 
-    y = "Probability", 
-    title = "Incubation time distribution - bubonic plague", 
-    subtitle = "(discretized lognormal)")
+    y = "Probability"
+  )
+
+```
 
 ## Some stats based upon 1 million draws
 summary(incub$r(1e6))
 
-```
 
 
 ### Infectious period
@@ -119,18 +122,22 @@ infec_dat <- tibble(
   p = infec$d(0:15)
   )
 
+## Some stats based upon 10 million draws
+summary(infec$r(1e6))
+
+```
+
+
+```{r figure_S2, fig.cap = "Infectious period distribution of bubonic plague"}
+
 infec_dat %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 2) +
   theme_bw() +
   labs(
     x = "Time from symptom onset to death (days)", 
-    y = "Probability", 
-    title = "Infectious period distribution - bubonic plague", 
-    subtitle = "(discretized lognormal)")
-
-## Some stats based upon 10 million draws
-summary(infec$r(1e6))
+    y = "Probability"
+  )
 
 ```
 
@@ -188,7 +195,7 @@ lambda_res <- tibble(
   "15 days" = like_trip(val, 15), 
   "20 days" = like_trip(val, 20)
 ) %>% 
-  mutate_at(
+   mutate_at(
     vars(contains("days")), 
     function(x) x / sum(x)
   )
@@ -196,7 +203,7 @@ lambda_res <- tibble(
 lambda_res_long <-  lambda_res %>% 
   pivot_longer(-1, names_to = "scenario", values_to = "likelihood") %>% 
   mutate(scenario = factor(scenario, levels = paste(c(10, 15, 20), "days")))
-  
+
 lambda_res_mle <- lambda_res_long %>% 
   group_by(scenario) %>% 
   summarise(MLE = val[which.max(likelihood)])
@@ -205,7 +212,7 @@ lambda_res_mle
 
 ```
 
-```{r figure1}
+```{r figure_1}
 
 lambda_res_long %>% 
   ggplot(aes(x = val, y = likelihood, color = scenario)) +
@@ -233,7 +240,7 @@ lambda_res_mle <- lambda_res_mle %>%
   mutate(
     days = as.integer(sub(" days", "", scenario)), 
     proba = like_trip(lambda = MLE, T = days)
-    )
+  )
 lambda_res_mle
 
 ```
@@ -278,11 +285,15 @@ qplot(sim_delay_inf_death) +
     subtitle = "dashed lines: JQ -> child transmission",
     x = "Days from infection to death", 
     y = "Frequency"
-    )
+  )
 
 ```
 
-It is very unlikely that the first secondary case was directly infected by Jean Quintin. There remains the possibility that infected surfaces (clothes, bedsheets) were infected by _Y. pestis_, which has been shown to be able to last up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting these 5 days from the overal delay:
+It is very unlikely that the first secondary case was directly infected by Jean
+Quintin. There remains the possibility that infected surfaces (clothes,
+bedsheets) were infected by _Y. pestis_, which has been shown to be able to last
+up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting
+these 5 days from the overal delay:
 
 ```{r}
 
@@ -302,9 +313,12 @@ child_delay_pval_alt
 mean(child_delay_pval_alt)
 ```
 
-It seems we can rule out the hypothesis of a direct transmission of bubonic plague. Possible aternatives are:
+It seems we can rule out the hypothesis of a direct transmission of bubonic
+plague. Possible aternatives are:
 
-- it was a bubonic plague, with a long duration of illness in the kid; might be unlikely seeing that patients seem to die very quickly - TBC
+- it was a bubonic plague, with a long duration of illness in the kid; might be
+  unlikely seeing that patients seem to die very quickly - TBC
+
 - the kid was __not__ infected by his dad, but from a zoonotic source
 
 
@@ -356,12 +370,19 @@ x %>%
 
 ```
 
-There is one key question here: do we assume Corréjac and La Canourgue were disconnected at the time, or do we treat these as a single location. 
+There is one key question here: do we assume Corréjac and La Canourgue were
+disconnected at the time, or do we treat these as a single location.
 
 
 ## A transmission model for bubonic plague
 
-A branching process will likely be best at capturing small fluctuations in case incidence over time, whilst neglecting the impact of the depletion of susceptible individuals. However we need to allow for a background rate of zoonotic introduction in addition to the classical person-to-person transmission [@Wallinga2004-al]. As such, we will be using a Hawkes process [@Hawkes1971-iz] to model the case incidence over time, using augmented data to make up for the lack of precise information on dates of symptom onset and infection.
+A branching process will likely be best at capturing small fluctuations in case
+incidence over time, whilst neglecting the impact of the depletion of
+susceptible individuals. However we need to allow for a background rate of
+zoonotic introduction in addition to the classical person-to-person transmission
+[@Wallinga2004-al]. As such, we will be using a Hawkes process [@Hawkes1971-iz]
+to model the case incidence over time, using augmented data to make up for the
+lack of precise information on dates of symptom onset and infection.
 
 ### Notations
 
@@ -472,7 +493,7 @@ We will try both approaches out of curiosity (planting the seed of a new MRes
 project?) but will retain option __b__ as the correct one.
 
 We start with approach A, basing estimates on 10 million draws:
-```{r}
+```{r fig.cap = "Generation time distribution of bubonic plague (drawing from discrete distributions"}
 ## RNG for delay from onset to infection
 onset_to_inf_r_a <- function(n) {
   floor(runif(n, 0, infec$r(n) + 1))
@@ -512,7 +533,11 @@ gentime_a <- list(d = gentime_d_a, r = gentime_r_a)
 gt_dat_a <- tibble(
   Day = 0:25,
   p = gentime_a$d(0:25)
-  )
+)
+
+
+## Summary stats of the GT - approach A
+summary(gentime_dat_a)
 
 gt_dat_a %>% 
   ggplot(aes(x = Day, y = p)) +
@@ -520,13 +545,8 @@ gt_dat_a %>%
   theme_bw() +
   labs(
     x = "Time from primary to secondary infection", 
-    y = "Probability", 
-    title = "Generation time distribution - bubonic plague",
-    subtitle = "Drawing from discretized distributions"
+    y = "Probability"
     )
-
-## Summary stats of the GT - approach A
-summary(gentime_dat_a)
 
 ```
 
@@ -585,15 +605,17 @@ gt_dat_b <- tibble(
   p = gentime_b$d(0:25)
   )
 
+```
+
+```{r figure_S3, fig.cap = "Generation time distribution of bubonic plague (drawing from continuous distributions"}
+
 gt_dat_b %>% 
   ggplot(aes(x = Day, y = p)) +
   geom_col(fill = 4) +
   theme_bw() +
   labs(
     x = "Time from primary to secondary infection", 
-    y = "Probability", 
-    title = "Generation time distribution - bubonic plague",
-    subtitle = "Drawing from continuous distributions"
+    y = "Probability"
     )
 
 ## Summary stats of the GT - approach B
@@ -640,7 +662,7 @@ gentime <- gentime_b
 We use a prior for $R$ derived from [@Dean2019-ic] as a lognormal distribution
 with mean 1.6 and standard deviation 1.3:
 
-```{r}
+```{r figure_S4, fig.cap = "Prior for R0"}
 prior_R <- function(x, log = FALSE) dlnorm(x, log(1.6), log(1.3), log = log)
 prior_R_dat <- tibble(
   x = seq(0, 3, length.out = 1000),
@@ -652,9 +674,7 @@ ggplot(prior_R_dat, aes(x = x, y = d)) +
   theme_bw() +
   labs(
     x = "R0",
-    y = "Density",
-    title = "Prior for R0",
-    subtitle = "Lognormal(1.6, 1.3)"
+    y = "Density"
   )
 
 ```
@@ -972,12 +992,17 @@ chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]][to_keep, ]))
 names(chains) <- gsub("mcmc.", "", names(chains))
 chains$chain <- factor(chains$chain)
 
+```{r figure_S5, fig.cap = "Log-posterior traces"}
 
 ## Plots
 ggplot(chains) + 
   geom_line(aes(x = step, y = post, color = chain), alpha = 0.5) + 
-  labs(title = "Log-posterior traces")
+  labs(x = "Iteration", y = "Log-posterior")
 
+
+```
+
+```{r }
 ## Plots
 ggplot(chains) + 
   geom_line(aes(x = step, y = R, color = chain), alpha = 0.5) + 
@@ -987,7 +1012,7 @@ ggplot(chains) +
   geom_line(aes(x = step, y = zoo, color = chain), alpha = 0.5) + 
   labs(title = "Trace of lambda_z values")
 
-chains %>% 
+figure_3A <- chains %>% 
   filter(step > 100) %>% 
   ggplot(aes(x = R)) + 
   stat_density(aes(y = after_stat(scaled)), geom = "line") +
@@ -995,13 +1020,12 @@ chains %>%
   geom_line(data = prior_R_dat, aes(x = x, y = d), linetype = 2) +
   theme_bw() +
   labs(
-    x = "Effective reproduction number (R)",
-    y = "Density",
-    title = "Posterior distribution of R",
-    subtitle = "(dashed lines represent priors)")
+    x = "Basic reproduction number",
+    y = "Density"
+  )
+figure_3A
 
-
-chains %>% 
+figure_3B <- chains %>% 
   filter(step > 100) %>% 
   ggplot(aes(x = zoo)) + 
   stat_density(aes(y = after_stat(scaled)), geom = "line") +
@@ -1010,10 +1034,19 @@ chains %>%
   theme_bw() +
   labs(
     x = "Daily rate of zoonotic introductions",
-    y = "Density",
-    title = "Posterior distribution of lambda_z", 
-    subtitle = "(dashed lines represent priors)") +
+    y = "Density"
+  ) +
   xlim(0, 0.5)
+figure_3B
+
+```
+
+We make a joint figure for the paper:
+
+```{r figure_3}
+
+library(cowplot)
+plot_grid(figure_3A, figure_3B, nrow = 2, labels = c("A", "B"))
 
 ```
 
