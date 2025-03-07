@@ -212,18 +212,25 @@ lambda_res_mle
 
 ```
 
-```{r figure_1}
+```{r figure_2}
 
 lambda_res_long %>% 
   ggplot(aes(x = val, y = likelihood, color = scenario)) +
-  geom_line(linewidth = 2, alpha = 0.7) + 
-  geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
+  geom_line(linewidth = 1, alpha = 0.7) + 
+  #geom_vline(data = lambda_res_mle, aes(xintercept = MLE, color = scenario)) +
   theme_bw() + 
+  scale_color_manual(values = c(
+    `10 days` = "#1c1b42", 
+    `15 days` = "#413ae2", 
+    `20 days` = "#948ff9")) +
   labs(
     x = "Daily rate of infection",
     y = "Likelihood"
   ) +
-  scale_x_continuous(n.breaks = 20)
+  scale_x_continuous(n.breaks = 20) + 
+  theme(legend.position = c(.8, .8), 
+        legend.background = element_rect(linetype = 1, color = 1)
+  )
 
 ```
 
@@ -263,7 +270,11 @@ plague, integrating over the possible dates of infection (24th, 25th, 26th
 November), and convolving the incubation period, and the duration of the
 symptomatic period.
 
-```{r}
+We also consider, as a sensitivity study, the possibility of a transmission 
+after Jean's death from contaminated clothes or bedsheets, where _Y. pestis_ can
+survive up to 5 days [@Rose2003-og].
+
+```{r figure_3, fig.cap = "Delays from infection to death for the first transmission"}
 ## calculate possible delays from infection to death
 child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
@@ -278,11 +289,10 @@ mean(child_delay_pval)
 
 qplot(sim_delay_inf_death) + 
   theme_bw() + 
-  geom_vline(xintercept = child_delay, color = 2, linetype = 2) + 
+  geom_vline(xintercept = child_delay, color = "#6a5ce2", linetype = 2) + 
+  geom_vline(xintercept = child_delay - 5, color = "#C70039", linetype = 2) + 
   xlim(0, 40) + 
   labs(
-    title = "Simulated delays from infection to death - bubonic plague",
-    subtitle = "dashed lines: JQ -> child transmission",
     x = "Days from infection to death", 
     y = "Frequency"
   )
@@ -290,23 +300,11 @@ qplot(sim_delay_inf_death) +
 ```
 
 It is very unlikely that the first secondary case was directly infected by Jean
-Quintin. There remains the possibility that infected surfaces (clothes,
-bedsheets) were infected by _Y. pestis_, which has been shown to be able to last
-up to 5 days [@Rose2003-og]. We can replicate the same analysis subtracting
-these 5 days from the overal delay:
+Quintin . 
+
 
 ```{r}
 
-qplot(sim_delay_inf_death) + 
-  theme_bw() + 
-  geom_vline(xintercept = child_delay - 5, color = 2, linetype = 2) + 
-  xlim(0, 40) + 
-  labs(
-    title = "Simulated delays from infection to death - bubonic plague", 
-    subtitle = "dashed lines: JQ -> child transmission",
-    x = "Days from infection to death", 
-    y = "Frequency"
-    )
 
 child_delay_pval_alt <- sapply(child_delay - 5, function(x) mean(sim_delay_inf_death >= x))
 child_delay_pval_alt
@@ -1012,7 +1010,7 @@ ggplot(chains) +
   geom_line(aes(x = step, y = zoo, color = chain), alpha = 0.5) + 
   labs(title = "Trace of lambda_z values")
 
-figure_3A <- chains %>% 
+figure_4A <- chains %>% 
   filter(step > 100) %>% 
   ggplot(aes(x = R)) + 
   stat_density(aes(y = after_stat(scaled)), geom = "line") +
@@ -1023,9 +1021,9 @@ figure_3A <- chains %>%
     x = "Basic reproduction number",
     y = "Density"
   )
-figure_3A
+figure_4A
 
-figure_3B <- chains %>% 
+figure_4B <- chains %>% 
   filter(step > 100) %>% 
   ggplot(aes(x = zoo)) + 
   stat_density(aes(y = after_stat(scaled)), geom = "line") +
@@ -1037,13 +1035,13 @@ figure_3B <- chains %>%
     y = "Density"
   ) +
   xlim(0, 0.5)
-figure_3B
+figure_4B
 
 ```
 
 We make a joint figure for the paper:
 
-```{r figure_3}
+```{r figure_4}
 
 library(cowplot)
 plot_grid(figure_3A, figure_3B, nrow = 2, labels = c("A", "B"))
