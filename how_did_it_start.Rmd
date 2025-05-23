@@ -281,7 +281,7 @@ child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
 ## convolve using 1e6 draws from distributions
-sim_delay_inf_death <- incub$r(1e6) + infec$r(1e6)
+sim_delay_inf_death <- incub$r(1e7) + infec$r(1e7)
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
