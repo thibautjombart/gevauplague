@@ -373,6 +373,25 @@ x %>%
 
 ```
 
+We make a figure for the paper:
+```{r figure_1, fig.width = 5, fig.height = 3}
+figure_1 <- x %>% 
+  incidence("date_of_death", groups = "location", interval = 7) %>% 
+  plot(fill = "location", colour_palette = muted, angle = 45, border = "white") + 
+  labs(
+    title = NULL,
+    x = NULL, 
+    y = "Weekly death incidence"
+    ) + 
+  scale_fill_manual("", values = c("Corréjac" = "#900c3f", "La Canourgue" = "#647bac")) + 
+  theme(legend.position = c(0.18, 0.9), 
+        legend.background = element_rect(
+          fill = "white", color = grey(0.6)),
+        legend.title = element_blank())
+  
+figure_1
+```
+
 There is one key question here: do we assume Corréjac and La Canourgue were
 disconnected at the time, or do we treat these as a single location.
 
