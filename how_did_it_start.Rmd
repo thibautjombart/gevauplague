@@ -1066,15 +1066,6 @@ figure_4B
 
 ```
 
-We make a joint figure for the paper:
-
-```{r figure_4, fig.width = 5, fig.height = 5}
-
-library(cowplot)
-plot_grid(figure_4A, figure_4B, nrow = 2, labels = c("A", "B"))
-
-```
-
 We can report the mean, median and 95% CrI for each parameter:
 
 ```{r }
@@ -1115,6 +1106,69 @@ p_R_above_1
 
 ```
 
+We calculate the respective overall daily force of infection from humans, and from 
+zoonotic introductions:
+
+```{r}
+n_cases <- nrow(x_cor)
+n_days <- as.integer(diff(range(x_cor$date_of_death)))
+
+# average daily FOI from humans
+foi_humans <- chains %>% 
+  filter(step > 100) %>% 
+  pull(R) * n_cases / n_days
+
+summary(foi_humans)
+quantile(foi_humans, c(0.025, 0.975))
+
+# average daily FOI from zoonotic infections
+foi_zoo <- chains %>% 
+  filter(step > 100) %>% 
+  pull(zoo)
+
+summary(foi_zoo)
+quantile(foi_zoo, c(0.025, 0.975))
+
+# ratio
+foi_total <- foi_humans + foi_zoo
+prop_foi_humans <- foi_humans / foi_total
+summary(prop_foi_humans)
+quantile(prop_foi_humans, c(0.025, 0.975))
+
+source_colors <- c("Human to human" = "#548ecf",
+                   "Rodent to human" = "#aacf54")
+
+figure_4C <- tibble(
+  "Human to human" = foi_humans / foi_total, 
+  "Rodent to human" = foi_zoo / foi_total) %>% 
+  pivot_longer(1:2, values_to = "p", names_to = "source") %>% 
+  mutate("source" = factor(source, levels = c("Rodent to human", "Human to human"))) %>% 
+  ggplot(aes(x = p, color = source)) + 
+  geom_density(aes(fill = source), alpha = 0.5) + 
+  geom_rug(alpha = .1) + 
+  theme_bw() + 
+  scale_fill_manual("", values = source_colors) + 
+  scale_color_manual("", values = source_colors) + 
+  labs(x = "Proportion of daily transmission",
+       y = "Density") + 
+  scale_x_continuous(labels = scales::percent, 
+                     breaks = seq(0, 1, by = 0.1), 
+                     limits = c(0, 1)) + 
+  theme(legend.position = "bottom")
+
+```
+
+We make a joint figure for the paper:
+
+```{r figure_4, fig.width = 5, fig.height = 5}
+
+library(cowplot)
+plot_grid(figure_4A, figure_4B, figure_4C, 
+          nrow = 3, labels = c("A", "B", "C"))
+
+```
+
+
 Results suggest that:
 
 - the data is informative on $R_0$ and $\lambda_z$, with posterior distributions well different from the priors
@@ -1123,6 +1177,9 @@ Results suggest that:
 
 - the estimated rate of zoonotic introductions confirms that re-introduction played a substantial role in transmission, with a mean rate of introduction of `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
 
+- overall, human-to-human transmission accounted for 
+`r 100 * round(mean(prop_foi_humans), 2)`% of the total transmission
+(95% CrI: `r 100 * round(quantile(prop_foi_humans, 0.025), 2)`% - `r 100 * round(quantile(prop_foi_humans, 0.975), 2)`%)
 
 
 
@@ -1244,6 +1301,36 @@ p_R_above_1 <- chains %>%
 p_R_above_1
 
 ```
+We calculate the respective overall daily force of infection from humans, and from 
+zoonotic introductions:
+
+```{r}
+n_cases <- nrow(x)
+n_days <- as.integer(diff(range(x$date_of_death)))
+
+# average daily FOI from humans
+foi_humans <- chains %>% 
+  filter(step > 100) %>% 
+  pull(R) * n_cases / n_days
+
+summary(foi_humans)
+quantile(foi_humans, c(0.025, 0.975))
+
+# average daily FOI from zoonotic infections
+foi_zoo <- chains %>% 
+  filter(step > 100) %>% 
+  pull(zoo)
+
+summary(foi_zoo)
+quantile(foi_zoo, c(0.025, 0.975))
+
+# ratio
+foi_total <- foi_humans + foi_zoo
+prop_foi_humans <- foi_humans / foi_total
+summary(prop_foi_humans)
+quantile(prop_foi_humans, c(0.025, 0.975))
+
+```
 
 Results of the sensitivity analysis on all data:
 
@@ -1251,6 +1338,9 @@ Results of the sensitivity analysis on all data:
 
 - the mean rate of zoonotic introductions estimated on all data was `r round(chains_smry[2, 1], 2)` (95% CrI: `r round(chains_smry[2, 3], 2)` - `r round(chains_smry[2, 4], 2)`), corresponding to an average of one introduction every `r round(1/chains_smry[2, 1], 1)` days
 
+- overall, human-to-human transmission accounted for 
+`r 100 * round(mean(prop_foi_humans), 2)`% of the total transmission
+(95% CrI: `r 100 * round(quantile(prop_foi_humans, 0.025), 2)`% - `r 100 * round(quantile(prop_foi_humans, 0.975), 2)`%)
 
 
 
