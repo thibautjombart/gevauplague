@@ -280,8 +280,13 @@ survive up to 5 days [@Rose2003-og].
 child_delay <- as.integer(as.Date("1720-12-18") - as.Date("1720-11-24") + 0:2)
 child_delay
 
-## convolve using 1e6 draws from distributions
+## convolve using 1e7 draws from distributions
 sim_delay_inf_death <- incub$r(1e7) + infec$r(1e7)
+sim_delay_inf_death_q <- data.frame(
+  q = quantile(sim_delay_inf_death, 
+               seq(0, 1, by = 0.1))
+  )
+
 
 ## calculate p-values
 child_delay_pval <- sapply(child_delay, function(x) mean(sim_delay_inf_death >= x))
@@ -293,8 +298,8 @@ data.frame(sim_delay_inf_death) %>%
   geom_histogram(
     binwidth = 1, 
     aes(y=..count../sum(..count..))) +
-  geom_rug(alpha = 0.1) + 
-    theme_bw() + 
+  geom_rug(data = sim_delay_inf_death_q, aes(x = q)) +
+     theme_bw() + 
   geom_vline(xintercept = child_delay, color = "#6a5ce2", linetype = 2) + 
   geom_vline(xintercept = child_delay - 5, color = "#C70039", linetype = 2) +
   labs(
@@ -676,6 +681,10 @@ summary(infec_cont_r(1e6)) # continuous
 We choose the 2nd approach:
 ```{r}
 gentime <- gentime_b
+gentime_mean <- mean(gentime$r(1e7))
+gentime_mean
+gentime_sd <- sd(gentime$r(1e7))
+gentime_sd
 ```
 
 
@@ -1111,7 +1120,7 @@ zoonotic introductions:
 
 ```{r}
 n_cases <- nrow(x_cor)
-n_days <- as.integer(diff(range(x_cor$date_of_death)))
+n_days <- as.integer(diff(range(x_cor$date_of_death))) + gentime_mean
 
 # average daily FOI from humans
 foi_humans <- chains %>% 
@@ -1308,7 +1317,7 @@ zoonotic introductions:
 
 ```{r}
 n_cases <- nrow(x)
-n_days <- as.integer(diff(range(x$date_of_death)))
+n_days <- as.integer(diff(range(x$date_of_death))) + gentime_mean
 
 # average daily FOI from humans
 foi_humans <- chains %>% 
