@@ -1022,7 +1022,7 @@ We run the chains for a few iterations to check all runs smoothly:
 system.time(res <- estimate_params(
   x_cor$date_of_death, 
   pop_size = 111, 
-  n_iter = 1e4)
+  n_iter = 30)
 )
 head(res)
 tail(res)
@@ -1040,21 +1040,21 @@ simplicity, chains have been saved in a separate RDS file.
 
 # n_iter <- 2000
 
-n_iter <- 100
+n_iter <- 1e4
 
-## library(parallel)
-## res <- mclapply(1:12, function(i) 
-##   cbind.data.frame(
-##     estimate_params(
-##       x_cor$date_of_death,
-##       pop_size = 111,
-##       n_iter = n_iter),
-##     chain = i),
-##   mc.cores = 12
-##   )
-## saveRDS(res, file = "res_2000iter_12chains_correjac.rds")
+library(parallel)
+res <- mclapply(1:12, function(i) 
+  cbind.data.frame(
+    estimate_params(
+      x_cor$date_of_death,
+      pop_size = 111,
+      n_iter = n_iter),
+    chain = i),
+  mc.cores = 12
+  )
+saveRDS(res, file = "res_1e4iter_12chains_correjac.rds")
 
-res <- readRDS("res_2000iter_12chains_correjac.rds")
+res <- readRDS("res_1e4iter_12chains_correjac.rds")
 
 ## Some diagnostics
 library(coda)
@@ -1063,8 +1063,8 @@ lapply(res, function(e) effectiveSize(mcmc(e))) %>%
 
 
 ## Putting chains together and thining
-## Given the reported ESS a thining of 1/10 seems reasonable
-to_keep <- seq(from = 1, to = n_iter, by = 10)
+## Given the reported ESS a thining of 1/100 seems reasonable
+to_keep <- seq(from = 1, to = n_iter, by = 100)
 chains <- Reduce(rbind, lapply(1:length(res), function(i) res[[i]][to_keep, ]))
 names(chains) <- gsub("mcmc.", "", names(chains))
 chains$chain <- factor(chains$chain)
@@ -1246,21 +1246,20 @@ As a sensitivity study, we re-run the same analyses but including all cases.
 
 ```{r}
 
-n_iter <- 2000
+library(parallel)
 
-## library(parallel)
-## res <- mclapply(1:12, function(i) 
-##   cbind.data.frame(
-##     estimate_params(
-##       x$date_of_death,
-##       pop_size = 111,
-##       n_iter = n_iter),
-##     chain = i),
-##   mc.cores = 12
-##   )
-## saveRDS(res, file = "res_2000iter_12chains_all_cases.rds")
+res <- mclapply(1:12, function(i) 
+  cbind.data.frame(
+    estimate_params(
+      x$date_of_death,
+      pop_size = 111,
+      n_iter = n_iter),
+    chain = i),
+  mc.cores = 12
+  )
+saveRDS(res, file = "res_1e4iter_12chains_all_cases.rds")
 
-res <- readRDS("res_2000iter_12chains_all_cases.rds")
+res <- readRDS("res_1e4iter_12chains_all_cases.rds")
 
 ## Some diagnostics
 lapply(res, function(e) effectiveSize(mcmc(e))) %>%
