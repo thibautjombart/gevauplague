@@ -776,6 +776,23 @@ make_aug_data <- function(date_death,
 
 
 
+## Function to move augmented data
+## 'x' is a data.frame as output but make_aug_data()
+## 'p' is the proportion of data to move
+move_aug_data <- function(x, p = 0.1, 
+                          r_incub = incub$r, 
+                          r_infec = infec$r) {
+  n <- nrow(x)
+  to_move <- sample(c(TRUE, FALSE), n, prob = c(p, 1 - p), replace = TRUE)
+  n_to_move <- sum(to_move)
+  
+  x[to_move, ]$onset <- x[to_move, ]$death - r_infec(n_to_move)
+  x[to_move, ]$infection <- x[to_move, ]$onset - r_incub(n_to_move)
+  x
+}
+
+
+
 ## Function to calculate the log-likelihood
 ## 
 ## @param data: a data.frame with 3 columns as returned by make_aug_data()
@@ -860,6 +877,7 @@ compute_post <- function(data,
 ##   the effective reproduction number
 ## @param ini_zoo the initial value of the daily rate of zoonotic introduction
 ## @param ini_R the initial value of the effective reproduction number
+## @param p_aug_data the proportion of augmented data moved at each step
 
 estimate_params <- function(date_death,
                             n_iter = 1e3,
@@ -871,7 +889,8 @@ estimate_params <- function(date_death,
                             r_incub = incub$r, 
                             r_infec = infec$r, 
                             sd_zoo = 0.1, 
-                            sd_R = 0.4, 
+                            sd_R = 0.4,
+                            p_aug_data = 0.1,
                             ini_zoo = runif(1, 0, 1), 
                             ini_R = runif(1, 0, 3),
                             pop_size = 111) {
@@ -898,11 +917,12 @@ estimate_params <- function(date_death,
   )
   accept_zoo <- 0
   accept_R <- 0
+  accept_aug_data <- 0
   
   for (i in seq_len(n_iter)) {
     
-    #### make new augmented data
-    aug_data <- make_aug_data(date_death, r_incub, r_infec)
+    #### /// move augmented data
+    #### calculate current log-post
     current_post <- compute_post(aug_data,
                                  current_params, 
                                  d_incub, 
@@ -911,7 +931,29 @@ estimate_params <- function(date_death,
                                  d_zoo, 
                                  d_R, 
                                  pop_size)
+   
+    #### propose new augmented data
+    new_aug_data <- move_aug_data(aug_data, p_aug_data)
     
+    new_post <- compute_post(new_aug_data,
+                             current_params, 
+                             d_incub, 
+                             d_infec, 
+                             d_gentime,
+                             d_zoo, 
+                             d_R, 
+                             pop_size)
+
+    #### accept/reject new augmented data
+    p_accept_aug_data <- exp(new_post - current_post)
+    if (runif(1) <= p_accept_aug_data) { # accept move
+      aug_data <- new_aug_data
+      current_post <- new_post
+      accept_aug_data <- accept_aug_data + 1
+    }
+    
+    
+    #### // move daily rate of zoonotic introduction
     #### propose new zoo
     new_params$zoo <- current_params$zoo + rnorm(1, sd = sd_zoo)
     
@@ -932,7 +974,8 @@ estimate_params <- function(date_death,
     } else { # reject move
       new_params$zoo <- current_params$zoo
     }
-      
+    
+    #### // move R  
     #### propose new R
     new_params$R <- current_params$R + rnorm(1, sd = sd_R)
     
@@ -964,7 +1007,8 @@ estimate_params <- function(date_death,
   list(
     mcmc = data.frame(mcmc),
     accept_zoo = accept_zoo / n_iter, 
-    accept_R = accept_R / n_iter
+    accept_R = accept_R / n_iter,
+    accept_aug_data = accept_aug_data / n_iter
   )
   
 }
@@ -978,7 +1022,7 @@ We run the chains for a few iterations to check all runs smoothly:
 system.time(res <- estimate_params(
   x_cor$date_of_death, 
   pop_size = 111, 
-  n_iter = 30)
+  n_iter = 1e4)
 )
 head(res)
 tail(res)
@@ -994,7 +1038,9 @@ simplicity, chains have been saved in a separate RDS file.
 
 ```{r}
 
-n_iter <- 2000
+# n_iter <- 2000
+
+n_iter <- 100
 
 ## library(parallel)
 ## res <- mclapply(1:12, function(i) 
